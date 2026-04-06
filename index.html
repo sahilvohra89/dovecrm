@@ -1216,13 +1216,23 @@ function rMyDash(){
   const fuRaw=db.calls.filter(c=>{
     if(c.agentId!==uid||!c.followupDate)return false;
     const lead=db.leads.find(l=>l.id===c.leadId);
-    return !lead||!_closedSt.has(lead.status); // hide follow-ups for closed/not-interested leads
+    if(lead&&_closedSt.has(lead.status))return false; // hide closed leads
+    // If there's a NEWER call for this lead with NO follow-up date, it means follow-up was done
+    const newerCall=db.calls.find(n=>n.leadId===c.leadId&&n.agentId===uid&&n.datetime>c.datetime&&!n.followupDate);
+    if(newerCall)return false; // follow-up was completed in a later call
+    return true;
   });
   const fuMap=new Map();
-  fuRaw.forEach(c=>{const ex=fuMap.get(c.leadId);if(!ex||c.followupDate>ex.followupDate)fuMap.set(c.leadId,c);});
+  fuRaw.forEach(c=>{const ex=fuMap.get(c.leadId);if(!ex||c.datetime>ex.datetime)fuMap.set(c.leadId,c);}); // keep most recent call per lead
   const fu=Array.from(fuMap.values()).sort((a,b)=>a.followupDate.localeCompare(b.followupDate));
   const fqEl=document.getElementById('followup-queue');
-  document.getElementById('fq-count').textContent=fu.length+' pending';
+  const fuOverdue=fu.filter(c=>c.followupDate<today).length;
+  const fuToday=fu.filter(c=>c.followupDate===today).length;
+  const fuUpcoming=fu.filter(c=>c.followupDate>today).length;
+  let fqLabel=fu.length+' total';
+  if(fuOverdue>0)fqLabel+=` · ${fuOverdue} overdue`;
+  if(fuToday>0)fqLabel+=` · ${fuToday} today`;
+  document.getElementById('fq-count').textContent=fqLabel;
   if(!fu.length){fqEl.innerHTML='<div style="color:var(--text3);font-size:13px;padding:12px 0">No follow-ups pending. Great work!</div>';}
   else{
     fqEl.innerHTML=fu.slice(0,8).map(c=>{
@@ -1230,12 +1240,15 @@ function rMyDash(){
       const cls=isOverdue?'due-overdue':isToday?'due-today':'due-upcoming';
       const lbl=isOverdue?'Overdue':isToday?'Today':fd(d);
       const lead=db.leads.find(l=>l.id===c.leadId);
-      return`<div class="fq-item" style="cursor:pointer" onclick="navigateTo('leads');setTimeout(()=>quickLogCall(${c.leadId}),600)" title="Click to log call for ${c.leadName}">
+      return`<div class="fq-item">
         <span class="fq-due ${cls}">${lbl}</span>
-        <div style="flex:1"><div style="font-weight:600;font-size:13px">${c.leadName}</div>
-        <div style="font-size:11.5px;color:var(--text3)">${c.outcome} · ${c.notes||'No notes'}</div></div>
-        ${lead?.phone?`<a class="wa-btn" href="https://wa.me/91${lead.phone}" target="_blank" onclick="event.stopPropagation()">WhatsApp</a>`:''}
-        <span style="font-size:11px;color:var(--accent);font-weight:600">⚡ Log →</span>
+        <div style="flex:1;cursor:pointer" onclick="navigateTo('leads');setTimeout(()=>quickLogCall(${c.leadId}),600)" title="Click to open Quick Log">
+          <div style="font-weight:600;font-size:13px">${c.leadName}</div>
+          <div style="font-size:11.5px;color:var(--text3)">${c.outcome} · ${c.notes||'No notes'}</div>
+        </div>
+        ${lead?.phone?`<a href="tel:${lead.phone}" style="font-size:18px;text-decoration:none" title="Call ${c.leadName}" onclick="event.stopPropagation()">📞</a>`:''}
+        ${lead?.phone?`<a class="wa-btn" href="https://wa.me/91${(lead.phone||"").replace(/\D/g,"")}" target="_blank" onclick="event.stopPropagation()">WhatsApp</a>`:''}
+        <span style="font-size:11px;color:var(--accent);font-weight:600;cursor:pointer" onclick="navigateTo('leads');setTimeout(()=>quickLogCall(${c.leadId}),600)">⚡ Log →</span>
       </div>`;
     }).join('');
   }
@@ -1262,7 +1275,7 @@ function rMyDash(){
       <td style="font-size:12.5px;color:var(--text2)">${l.company||'—'}</td>
       <td><div style="display:flex;align-items:center;gap:5px">
         ${l.phone?`<a href="tel:${l.phone}" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent);text-decoration:none">${l.phone}</a>`:'—'}
-        ${l.phone?`<a class="wa-btn" href="https://wa.me/91${l.phone}" target="_blank" style="font-size:10px;padding:2px 5px">WA</a>`:''}
+        ${l.phone?`<a class="wa-btn" href="https://wa.me/91${(l.phone||"").replace(/\D/g,"")}" target="_blank" style="font-size:10px;padding:2px 5px">WA</a>`:''}
       </div></td>
       <td>${prioBdg(l.priority)}</td>
       <td>${bdg(l.status)}</td>
@@ -1301,7 +1314,7 @@ function rMyDash(){
         ${m.location?`<div style="font-size:12px;color:var(--text2);background:var(--bg);padding:6px 10px;border-radius:6px;margin-bottom:10px">📍 ${m.location}</div>`:''}
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
           ${lead?.phone?`<a href="tel:${lead.phone}" style="font-size:12px;color:var(--accent);font-weight:600;text-decoration:none">📞 ${lead.phone}</a>`:''}
-          ${lead?.phone?`<a class="wa-btn" href="https://wa.me/91${lead.phone}" target="_blank">WhatsApp</a>`:''}
+          ${lead?.phone?`<a class="wa-btn" href="https://wa.me/91${(lead.phone||"").replace(/\D/g,"")}" target="_blank">WhatsApp</a>`:''}
           ${m.location?`<a style="font-size:12px;color:var(--teal);font-weight:600;text-decoration:none" href="https://maps.google.com/?q=${encodeURIComponent(m.location)}" target="_blank">🗺 Navigate</a>`:''}
         </div>
         <div class="meet-update-form">
@@ -1510,7 +1523,7 @@ function rLeads(list){
       <td style="color:var(--text2)">${l.company||'—'}</td>
       <td><div style="display:flex;align-items:center;gap:6px">
         <span style="font-family:'JetBrains Mono',monospace;font-size:12.5px">${l.phone||'—'}</span>
-        ${l.phone?`<a class="wa-btn" href="https://wa.me/91${l.phone}" target="_blank" style="font-size:10.5px;padding:2px 6px">WA</a>`:''}
+        ${l.phone?`<a class="wa-btn" href="https://wa.me/91${(l.phone||"").replace(/\D/g,"")}" target="_blank" style="font-size:10.5px;padding:2px 6px">WA</a>`:''}
       </div></td>
       <td>${prioBdg(l.priority)}</td>
       <td>${bdg(l.status)}</td>
@@ -2952,8 +2965,12 @@ function checkOverdueFollowups(){
   if(!currentUser)return;
   const today=new Date().toISOString().split('T')[0];
   const closedSt=new Set(['Closed','Not Interested']);
+  // For telecallers: show their own overdue. For managers: show their team's overdue
+  const relevantIds=currentUser.role==='telecaller'
+    ?[currentUser.id]
+    :tcOnly().map(a=>a.id).concat([currentUser.id]);
   const overdue=db.calls.filter(c=>{
-    if(c.agentId!==currentUser.id||!c.followupDate||c.followupDate>today)return false;
+    if(!relevantIds.includes(c.agentId)||!c.followupDate||c.followupDate>today)return false;
     const lead=db.leads.find(l=>l.id===c.leadId);
     return !lead||!closedSt.has(lead.status);
   });
@@ -3310,7 +3327,7 @@ rLeads = function(list) {
       </div></div></td>
       <td><div style="display:flex;align-items:center;gap:5px">
         ${l.phone?`<a href="tel:${l.phone}" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent);text-decoration:none">${l.phone}</a>`:'—'}
-        ${l.phone?`<a class="wa-btn" href="https://wa.me/91${l.phone}" target="_blank" style="font-size:10px;padding:2px 5px">WA</a>`:''}
+        ${l.phone?`<a class="wa-btn" href="https://wa.me/91${(l.phone||"").replace(/\D/g,"")}" target="_blank" style="font-size:10px;padding:2px 5px">WA</a>`:''}
       </div></td>
       <td>${prioBdg(l.priority)}</td>
       <td>${bdg(l.status)}</td>
