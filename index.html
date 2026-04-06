@@ -1157,16 +1157,21 @@ function rDash(){
   } else {saBanner.innerHTML='';}
 
   // Show mapping warning if manager has no telecallers with managerId set
-  const mappedTCs=db.agents.filter(a=>a.role==='telecaller'&&a.managerId==currentUser.id);
   const mappingBanner=document.getElementById('mgr-mapping-banner');
   if(mappingBanner){
-    if(mappedTCs.length===0&&db.agents.filter(a=>a.role==='telecaller').length>0){
-      mappingBanner.style.display='block';
-      mappingBanner.innerHTML=`<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 16px;margin-bottom:14px;font-size:12.5px;color:#92400e">
-        ⚠️ <strong>Setup needed:</strong> No telecallers are assigned to you yet. 
-        Go to <strong>User Management</strong> → Edit each telecaller → Set <strong>Assigned Manager</strong> to yourself.
-        You are currently seeing all unassigned telecallers as a fallback.
-      </div>`;
+    // Only show mapping warning for managers only
+    if(currentUser.role==='manager'){
+      const mappedTCs=db.agents.filter(a=>a.role==='telecaller'&&a.managerId==currentUser.id);
+      if(mappedTCs.length===0&&db.agents.filter(a=>a.role==='telecaller').length>0){
+        mappingBanner.style.display='block';
+        mappingBanner.innerHTML=`<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 16px;margin-bottom:14px;font-size:12.5px;color:#92400e">
+          ⚠️ <strong>Setup needed:</strong> No telecallers are assigned to you yet. 
+          Go to <strong>User Management</strong> → Edit each telecaller → Set <strong>Assigned Manager</strong> to yourself.
+        </div>`;
+      } else {
+        mappingBanner.style.display='none';
+        mappingBanner.innerHTML='';
+      }
     } else {
       mappingBanner.style.display='none';
       mappingBanner.innerHTML='';
@@ -2122,6 +2127,7 @@ function saveM(){
     if(_ph&&!/^\d{10}$/.test(_ph)){toast('Phone must be exactly 10 digits','err');return;}
     if(_ph&&!eid&&db.leads.some(l=>l.phone===_ph)){toast('A lead with this phone already exists!','err');return;}
     const data={name:nm,company:document.getElementById('flco').value.trim(),phone:_ph,email:document.getElementById('flem').value.trim(),priority:document.getElementById('flpr').value,status:document.getElementById('flst').value,assignedTo:parseInt(document.getElementById('flas').value)||null,source:document.getElementById('flso').value,tags,attempts:eid?(db.leads.find(x=>x.id===eid)?.attempts||0):0,lastCalled:eid?(db.leads.find(x=>x.id===eid)?.lastCalled||''):''};
+    data.updatedAt=Date.now();
     if(eid){Object.assign(db.leads.find(x=>x.id===eid),data);toast('Lead updated.','ok');}
     else{db.leads.unshift({id:db.nL++,...data});toast('Lead added!','ok');}
     saveDB();rLeads(db.leads);
@@ -2151,6 +2157,7 @@ function saveM(){
     const _uph=document.getElementById('fuph').value.trim();
     if(_uph&&!/^\d{10}$/.test(_uph)){toast('Phone must be exactly 10 digits','err');return;}
     const data={name:nm,role,phone:_uph,email:document.getElementById('fuem').value.trim(),pin,dailyTarget:parseInt(document.getElementById('futgt').value)||60,status:document.getElementById('fust').value,managerId:role==='telecaller'?mgrId:null,profileType:document.getElementById('fuprofile')?.value||'meetings'};
+    data.updatedAt=Date.now();
     if(eid){Object.assign(db.agents.find(x=>x.id===eid),data);toast('User updated successfully!','ok');}
     else{db.agents.push({id:db.nA++,...data});toast('User added!','ok');}
     saveDB();rUsers();populateLoginUsers();
@@ -2618,7 +2625,20 @@ function mergeDB(local,remote){
   function mergeArr(loc,rem,type){
     const map=new Map();
     loc.forEach(x=>map.set(x.id,x));
-    rem.forEach(x=>map.set(x.id,x)); // remote wins for updates
+    rem.forEach(x=>{
+      const existing=map.get(x.id);
+      if(!existing){
+        map.set(x.id,x); // new item from remote
+      } else {
+        // If both have updatedAt, local wins if newer
+        const localTime=existing.updatedAt||0;
+        const remoteTime=x.updatedAt||0;
+        if(remoteTime>localTime){
+          map.set(x.id,x); // remote is newer, use remote
+        }
+        // else keep local (local is newer or same)
+      }
+    });
     // Remove anything that was deleted on either system
     allDel.forEach(key=>{
       const [t,id]=key.split(':');
@@ -3011,29 +3031,35 @@ document.addEventListener('click', e => {
 // Check for due reminders every minute
 function viewOverdueNow(){
   document.getElementById('overdue-alert-bar').style.display='none';
-  // If telecaller — go to My Dashboard and scroll to follow-up queue
-  if(currentUser.role==='telecaller'){
-    navigateTo('my-dashboard',document.getElementById('nav-my-dashboard'));
-    setTimeout(()=>{
-      const fqEl=document.getElementById('followup-queue');
-      if(fqEl){
-        fqEl.scrollIntoView({behavior:'smooth',block:'start'});
-        // Highlight the follow-up section briefly
-        const fqSection=fqEl.closest('.card')||fqEl.parentElement;
-        if(fqSection){
-          fqSection.style.transition='box-shadow .3s';
-          fqSection.style.boxShadow='0 0 0 3px #dc2626';
-          setTimeout(()=>{fqSection.style.boxShadow='';},2500);
-        }
+
+  function scrollToFollowUp(){
+    const fqEl=document.getElementById('followup-queue');
+    if(fqEl){
+      fqEl.scrollIntoView({behavior:'smooth',block:'center'});
+      // Highlight with red border
+      const fqSection=fqEl.closest('.card')||fqEl.parentElement;
+      if(fqSection){
+        fqSection.style.transition='box-shadow .3s';
+        fqSection.style.boxShadow='0 0 0 3px #dc2626';
+        setTimeout(()=>{fqSection.style.boxShadow='';},2500);
       }
-    },400);
+    }
+  }
+
+  if(currentUser.role==='telecaller'){
+    if(cv==='my-dashboard'){
+      // Already on My Dashboard — just scroll to follow-up queue directly
+      scrollToFollowUp();
+    } else {
+      // Navigate first then scroll
+      navigateTo('my-dashboard',document.getElementById('nav-my-dashboard'));
+      setTimeout(scrollToFollowUp, 500);
+    }
   } else {
-    // Manager — go to dashboard, scroll to telecaller targets
-    navigateTo('dashboard',document.getElementById('nav-dashboard'));
-    setTimeout(()=>{
-      const bar=document.getElementById('overdue-alert-bar');
-      if(bar)bar.style.display='none';
-    },200);
+    // Manager — go to dashboard
+    if(cv!=='dashboard'){
+      navigateTo('dashboard',document.getElementById('nav-dashboard'));
+    }
   }
 }
 function checkOverdueFollowups(){
