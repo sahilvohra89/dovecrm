@@ -811,7 +811,32 @@ function doLogin(){
   if(agent.pin!==pin){document.getElementById('login-err').textContent='Incorrect PIN. Try again.';return;}
   currentUser=agent;
   localStorage.setItem('dovecrm_v1_session',JSON.stringify({id:agent.id}));
-  startApp();
+  // Pull latest data from sheet BEFORE starting app so new users/data are available immediately
+  const errEl=document.getElementById('login-err');
+  if(cfg.gsUrl){
+    errEl.style.color='rgba(255,255,255,.5)';
+    errEl.textContent='Syncing latest data…';
+    fetch(cfg.gsUrl+'?action=read')
+      .then(r=>r.text())
+      .then(txt=>{
+        if(txt&&txt!=='null'&&txt!=='undefined'){
+          try{
+            const remoteDB=JSON.parse(txt);
+            if(remoteDB&&remoteDB.agents){
+              db=mergeDB(db,remoteDB);
+              saveDB();
+              // Update currentUser reference from merged db
+              currentUser=db.agents.find(a=>a.id===uid)||agent;
+            }
+          }catch(e){}
+        }
+        errEl.textContent='';errEl.style.color='';
+        startApp();
+      })
+      .catch(()=>{errEl.textContent='';errEl.style.color='';startApp();});
+  } else {
+    startApp();
+  }
 }
 function doLogout(){
   localStorage.removeItem('dovecrm_v1_session');
