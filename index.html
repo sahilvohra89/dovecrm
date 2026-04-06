@@ -483,7 +483,7 @@ tr:hover td{background:#faf9f5;}
     <div id="overdue-alert-bar" style="display:none;background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;padding:10px 20px;display:none;align-items:center;gap:12px;font-size:13px;font-weight:500">
       <span style="font-size:18px">⚠️</span>
       <span id="overdue-alert-text">You have overdue follow-ups!</span>
-      <button onclick="navigateTo('leads');document.getElementById('overdue-alert-bar').style.display='none'" style="margin-left:auto;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);color:#fff;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">View Now →</button>
+      <button onclick="viewOverdueNow()" style="margin-left:auto;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);color:#fff;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">View Now →</button>
       <button onclick="this.parentElement.style.display='none'" style="background:none;border:none;color:rgba(255,255,255,.7);cursor:pointer;font-size:18px;padding:0 4px">×</button>
     </div>
     <div class="view" id="view-my-dashboard">
@@ -783,6 +783,8 @@ function loadDB(){
     if(!d.leads)d.leads=[];
     if(!d.meetings)d.meetings=[];
     if(!d.deletedIds)d.deletedIds=[];
+    // Normalize managerId to integer
+    if(d.agents)d.agents.forEach(a=>{if(a.managerId!==null&&a.managerId!==undefined)a.managerId=parseInt(a.managerId)||null;});
     return d;
   }catch{return seed();}
 }
@@ -1055,7 +1057,8 @@ function qlSwitchOutcomes(ctypeSelect){
 }
 function tcOnly(){
   if(currentUser.role==='manager'){
-    return db.agents.filter(a=>a.role==='telecaller'&&a.managerId===currentUser.id);
+    // Use == (loose) to handle cases where managerId is stored as string vs number
+    return db.agents.filter(a=>a.role==='telecaller'&&a.managerId==currentUser.id);
   }
   return db.agents.filter(a=>a.role==='telecaller');
 }
@@ -1645,15 +1648,20 @@ function rUsers(){
     </div>`;
   } else {saTools.innerHTML='';}
 
-  const agents=isSA?db.agents:db.agents.filter(a=>a.role==='telecaller'&&a.managerId===currentUser.id||a.id===currentUser.id);
+  const agents=isSA?db.agents:db.agents.filter(a=>(a.role==='telecaller'&&a.managerId==currentUser.id)||a.id===currentUser.id);
   const tb=document.getElementById('utb');
   tb.innerHTML=agents.map(a=>{
     const calls=db.calls.filter(c=>c.agentId===a.id).length;
     const mf=db.calls.filter(c=>c.agentId===a.id&&c.meetingFixed).length;
     const conv=calls?Math.round(mf/calls*100):0;
     // Manager can edit telecallers; SA can edit everyone except themselves
-    const canEdit=isSA?a.id!==currentUser.id:a.role==='telecaller';
-    const canDelete=isSA?a.id!==currentUser.id:(a.role==='telecaller');
+    // Edit permissions per role
+    const canEdit = isSA ? true :
+      currentUser.role==='manager' ? (a.role==='telecaller'||a.id===currentUser.id) :
+      currentUser.role==='telecaller' ? a.id===currentUser.id : false;
+    // Delete permissions per role
+    const canDelete = isSA ? a.id!==currentUser.id :
+      currentUser.role==='manager' ? (a.role==='telecaller'&&a.managerId==currentUser.id) : false;
     const roleBadge=a.role==='superadmin'?'bgold':a.role==='manager'?'bp':'bb';
     const mgrName=a.managerId?an(a.managerId):'—';
     return`<tr>
@@ -1980,14 +1988,14 @@ function gF(type,d){
     return`
     <div class="fr">
       <div class="fg"><label class="fl">Full Name *</label><input class="fi" id="funm" value="${d.name||''}" placeholder="e.g. Sunita Verma"></div>
-      <div class="fg"><label class="fl">Role *</label><select class="fs" id="furl">${roleOptions}</select></div>
+      <div class="fg"><label class="fl">Role *</label><select class="fs" id="furl" ${eid&&currentUser.role==='telecaller'?'disabled':''}>${roleOptions}</select></div>
     </div>
     <div class="fr">
       <div class="fg"><label class="fl">Phone <span style="color:var(--text3);font-size:11px">(10 digits)</span></label><input class="fi" id="fuph" maxlength="10" pattern="[0-9]{10}" value="${d.phone||''}" placeholder="9XXXXXXXXX"></div>
       <div class="fg"><label class="fl">Email</label><input class="fi" id="fuem" type="email" value="${d.email||''}" placeholder="agent@company.in"></div>
     </div>
     <div class="fr">
-      <div class="fg"><label class="fl">PIN *</label><input class="fi" id="fupin" type="password" value="${d.pin||''}" placeholder="4-6 digits" maxlength="6"></div>
+      <div class="fg"><label class="fl">PIN ${eid?"(leave blank to keep current)":"*"}</label><input class="fi" id="fupin" type="text" value="${d.pin||''}" placeholder="4-6 digits" maxlength="6" style="letter-spacing:2px"></div>
       <div class="fg"><label class="fl">Daily Call Target</label><input class="fi" id="futgt" type="number" value="${d.dailyTarget||60}" min="0"></div>
     </div>
     <div class="fr">
@@ -2092,9 +2100,20 @@ function saveM(){
     saveDB();rLeads(db.leads);
   } else if(t==='users'){
     const nm=document.getElementById('funm').value.trim();
-    const pin=document.getElementById('fupin').value.trim();
+    let pin=document.getElementById('fupin').value.trim();
     if(!nm){toast('Name required.','err');return;}
-    if(!pin||pin.length<4||!/^\d+$/.test(pin)){toast('PIN must be 4-6 digits.','err');return;}
+    if(eid){
+      // Editing: PIN is optional — if blank keep existing PIN, if filled validate it
+      if(pin&&(pin.length<4||!/^\d+$/.test(pin))){toast('PIN must be 4-6 digits (numbers only).','err');return;}
+      if(!pin){
+        // Keep existing PIN
+        const existingAgent=db.agents.find(x=>x.id===eid);
+        pin=existingAgent?existingAgent.pin:'';
+      }
+    } else {
+      // Adding new user: PIN is required
+      if(!pin||pin.length<4||!/^\d+$/.test(pin)){toast('PIN must be 4-6 digits.','err');return;}
+    }
     const role=document.getElementById('furl').value;
     // Manager can only add telecallers
     if(currentUser.role==='manager'&&role!=='telecaller'){toast('You can only add Telecallers.','err');return;}
@@ -2105,7 +2124,7 @@ function saveM(){
     const _uph=document.getElementById('fuph').value.trim();
     if(_uph&&!/^\d{10}$/.test(_uph)){toast('Phone must be exactly 10 digits','err');return;}
     const data={name:nm,role,phone:_uph,email:document.getElementById('fuem').value.trim(),pin,dailyTarget:parseInt(document.getElementById('futgt').value)||60,status:document.getElementById('fust').value,managerId:role==='telecaller'?mgrId:null,profileType:document.getElementById('fuprofile')?.value||'meetings'};
-    if(eid){Object.assign(db.agents.find(x=>x.id===eid),data);toast('User updated.','ok');}
+    if(eid){Object.assign(db.agents.find(x=>x.id===eid),data);toast('User updated successfully!','ok');}
     else{db.agents.push({id:db.nA++,...data});toast('User added!','ok');}
     saveDB();rUsers();populateLoginUsers();
   }
@@ -2567,6 +2586,8 @@ function mergeDB(local,remote){
   const remoteDel = new Set((remote.deletedIds||[]).map(x=>String(x.type)+':'+x.id));
   const allDel = new Set([...localDel,...remoteDel]);
 
+  // Ensure agent managerId is always integer for consistent comparison
+  function normalizeAgent(a){if(a&&a.managerId!==null&&a.managerId!==undefined)a.managerId=parseInt(a.managerId)||null;return a;}
   function mergeArr(loc,rem,type){
     const map=new Map();
     loc.forEach(x=>map.set(x.id,x));
@@ -2588,7 +2609,7 @@ function mergeDB(local,remote){
     calls:mergeArr(local.calls,remote.calls||[],'calls'),
     leads:mergeArr(local.leads,remote.leads||[],'leads'),
     meetings:mergeArr(local.meetings,remote.meetings||[],'meetings'),
-    agents:mergeArr(local.agents,remote.agents||[],'agents'),
+    agents:mergeArr(local.agents,remote.agents||[],'agents').map(normalizeAgent),
     deletedIds:dedupDel,
     nA:Math.max(local.nA||0,remote.nA||0),
     nL:Math.max(local.nL||0,remote.nL||0),
@@ -2961,6 +2982,33 @@ document.addEventListener('click', e => {
 });
 
 // Check for due reminders every minute
+function viewOverdueNow(){
+  document.getElementById('overdue-alert-bar').style.display='none';
+  // If telecaller — go to My Dashboard and scroll to follow-up queue
+  if(currentUser.role==='telecaller'){
+    navigateTo('my-dashboard',document.getElementById('nav-my-dashboard'));
+    setTimeout(()=>{
+      const fqEl=document.getElementById('followup-queue');
+      if(fqEl){
+        fqEl.scrollIntoView({behavior:'smooth',block:'start'});
+        // Highlight the follow-up section briefly
+        const fqSection=fqEl.closest('.card')||fqEl.parentElement;
+        if(fqSection){
+          fqSection.style.transition='box-shadow .3s';
+          fqSection.style.boxShadow='0 0 0 3px #dc2626';
+          setTimeout(()=>{fqSection.style.boxShadow='';},2500);
+        }
+      }
+    },400);
+  } else {
+    // Manager — go to dashboard, scroll to telecaller targets
+    navigateTo('dashboard',document.getElementById('nav-dashboard'));
+    setTimeout(()=>{
+      const bar=document.getElementById('overdue-alert-bar');
+      if(bar)bar.style.display='none';
+    },200);
+  }
+}
 function checkOverdueFollowups(){
   if(!currentUser)return;
   const today=new Date().toISOString().split('T')[0];
