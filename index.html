@@ -709,6 +709,7 @@ function loadDB(){
     if(!d.calls)d.calls=[];
     if(!d.leads)d.leads=[];
     if(!d.meetings)d.meetings=[];
+    if(!d.deletedIds)d.deletedIds=[];
     return d;
   }catch{return seed();}
 }
@@ -1999,9 +2000,9 @@ function saveM(){
   cm();ub();syncNow();
 }
 
-function dC(id){if(!confirm('Delete this call?'))return;db.calls=db.calls.filter(x=>x.id!==id);saveDB();rCalls();toast('Deleted.','ok');ub();}
-function dM(id){if(!confirm('Delete this meeting?'))return;db.meetings=db.meetings.filter(x=>x.id!==id);saveDB();rMeet();toast('Deleted.','ok');ub();}
-function dL(id){if(!confirm('Delete this lead?'))return;db.leads=db.leads.filter(x=>x.id!==id);saveDB();rLeads(db.leads);toast('Deleted.','ok');ub();}
+function dC(id){if(!confirm('Delete this call?'))return;db.calls=db.calls.filter(x=>x.id!==id);if(!db.deletedIds)db.deletedIds=[];db.deletedIds.push({type:'calls',id});saveDB();rCalls();toast('Deleted.','ok');ub();syncNow();}
+function dM(id){if(!confirm('Delete this meeting?'))return;db.meetings=db.meetings.filter(x=>x.id!==id);if(!db.deletedIds)db.deletedIds=[];db.deletedIds.push({type:'meetings',id});saveDB();rMeet();toast('Deleted.','ok');ub();syncNow();}
+function dL(id){if(!confirm('Delete this lead?'))return;db.leads=db.leads.filter(x=>x.id!==id);if(!db.deletedIds)db.deletedIds=[];db.deletedIds.push({type:'leads',id});saveDB();rLeads(db.leads);toast('Deleted.','ok');ub();syncNow();}
 function dU(id){
   const a=db.agents.find(x=>x.id===id);
   if(!a){return;}
@@ -2009,7 +2010,9 @@ function dU(id){
   if(a.role==='manager'&&currentUser.role!=='superadmin'){toast('Only Super Admin can delete managers.','err');return;}
   if(!confirm(`Delete user "${a.name}"? This cannot be undone.`))return;
   db.agents=db.agents.filter(x=>x.id!==id);
-  saveDB();rUsers();populateLoginUsers();toast('User deleted.','ok');ub();
+  if(!db.deletedIds)db.deletedIds=[];
+  db.deletedIds.push({type:'agents',id});
+  saveDB();rUsers();populateLoginUsers();toast('User deleted.','ok');ub();syncNow();
 }
 
 // ── SUPER ADMIN ACTIONS ───────────────────────────────────────
@@ -2172,18 +2175,34 @@ async function syncNow(){
   }catch(e){console.error('Sync error:',e);updateSyncUI('err');}finally{syncing=false;}
 }
 function mergeDB(local,remote){
-  function mergeArr(loc,rem){
+  // Collect all deleted IDs from both sides
+  const localDel = new Set((local.deletedIds||[]).map(x=>String(x.type)+':'+x.id));
+  const remoteDel = new Set((remote.deletedIds||[]).map(x=>String(x.type)+':'+x.id));
+  const allDel = new Set([...localDel,...remoteDel]);
+
+  function mergeArr(loc,rem,type){
     const map=new Map();
     loc.forEach(x=>map.set(x.id,x));
-    rem.forEach(x=>map.set(x.id,x)); // remote wins — new users/data from sheet propagate
+    rem.forEach(x=>map.set(x.id,x)); // remote wins for updates
+    // Remove anything that was deleted on either system
+    allDel.forEach(key=>{
+      const [t,id]=key.split(':');
+      if(t===type)map.delete(parseInt(id));
+    });
     return Array.from(map.values());
   }
+
+  // Merge deletedIds lists from both sides
+  const mergedDel=[...(local.deletedIds||[]),...(remote.deletedIds||[])];
+  const dedupDel=Array.from(new Map(mergedDel.map(x=>[x.type+':'+x.id,x])).values());
+
   return{
     ...remote,
-    calls:mergeArr(local.calls,remote.calls||[]),
-    leads:mergeArr(local.leads,remote.leads||[]),
-    meetings:mergeArr(local.meetings,remote.meetings||[]),
-    agents:mergeArr(local.agents,remote.agents||[]),
+    calls:mergeArr(local.calls,remote.calls||[],'calls'),
+    leads:mergeArr(local.leads,remote.leads||[],'leads'),
+    meetings:mergeArr(local.meetings,remote.meetings||[],'meetings'),
+    agents:mergeArr(local.agents,remote.agents||[],'agents'),
+    deletedIds:dedupDel,
     nA:Math.max(local.nA||0,remote.nA||0),
     nL:Math.max(local.nL||0,remote.nL||0),
     nC:Math.max(local.nC||0,remote.nC||0),
