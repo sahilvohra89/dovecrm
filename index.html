@@ -1144,9 +1144,9 @@ function rDash(){
 
   // Scope data: manager sees only their telecallers, SA sees all
   const myTCIds=tcOnly().map(a=>a.id);
-  const scopedCalls=currentUser.role==='superadmin'?db.calls:db.calls.filter(c=>myTCIds.includes(c.agentId));
-  const scopedMeetings=currentUser.role==='superadmin'?db.meetings:db.meetings.filter(m=>myTCIds.includes(m.agentId));
-  const scopedLeads=currentUser.role==='superadmin'?db.leads:db.leads.filter(l=>!l.assignedTo||myTCIds.includes(l.assignedTo));
+  const scopedCalls=currentUser.role==='superadmin'?db.calls:db.calls.filter(c=>myTCIds.includes(c.agentId)||c.agentId===currentUser.id);
+  const scopedMeetings=currentUser.role==='superadmin'?db.meetings:db.meetings.filter(m=>myTCIds.includes(m.agentId)||m.agentId===currentUser.id);
+  const scopedLeads=currentUser.role==='superadmin'?db.leads:db.leads.filter(l=>!l.assignedTo||myTCIds.includes(l.assignedTo)||l.assignedTo===currentUser.id);
 
   const todayCalls=scopedCalls.filter(c=>c.datetime.startsWith(today));
   const mf=scopedCalls.filter(c=>c.meetingFixed).length;
@@ -1230,12 +1230,12 @@ function rMyDash(){
       const cls=isOverdue?'due-overdue':isToday?'due-today':'due-upcoming';
       const lbl=isOverdue?'Overdue':isToday?'Today':fd(d);
       const lead=db.leads.find(l=>l.id===c.leadId);
-      return`<div class="fq-item">
+      return`<div class="fq-item" style="cursor:pointer" onclick="navigateTo('leads');setTimeout(()=>quickLogCall(${c.leadId}),600)" title="Click to log call for ${c.leadName}">
         <span class="fq-due ${cls}">${lbl}</span>
         <div style="flex:1"><div style="font-weight:600;font-size:13px">${c.leadName}</div>
         <div style="font-size:11.5px;color:var(--text3)">${c.outcome} · ${c.notes||'No notes'}</div></div>
-        ${lead?`<a href="tel:${lead.phone}" style="font-size:12px;color:var(--accent);text-decoration:none;font-weight:600">📞 Call</a>`:''}
-        ${lead?.phone?`<a class="wa-btn" href="https://wa.me/91${lead.phone}" target="_blank">WhatsApp</a>`:''}
+        ${lead?.phone?`<a class="wa-btn" href="https://wa.me/91${lead.phone}" target="_blank" onclick="event.stopPropagation()">WhatsApp</a>`:''}
+        <span style="font-size:11px;color:var(--accent);font-weight:600">⚡ Log →</span>
       </div>`;
     }).join('');
   }
@@ -1371,7 +1371,7 @@ function rCalls(){
   const q=document.getElementById('si')?.value.toLowerCase().trim();
   let d=db.calls;
   if(currentUser.role==='telecaller')d=d.filter(c=>c.agentId===currentUser.id);
-  else if(currentUser.role==='manager'){const myTCs=tcOnly().map(a=>a.id);d=d.filter(c=>myTCs.includes(c.agentId));}
+  else if(currentUser.role==='manager'){const myTCs=tcOnly().map(a=>a.id);d=d.filter(c=>myTCs.includes(c.agentId)||c.agentId===currentUser.id);}
   if(af)d=d.filter(c=>c.agentId==af);
   if(of2)d=d.filter(c=>c.outcome===of2);
   if(ctf)d=d.filter(c=>(c.callType||'Customer Call')===ctf);
@@ -1407,7 +1407,7 @@ function rMeet(){
   const q=document.getElementById('si')?.value.toLowerCase().trim();
   let d=db.meetings;
   if(currentUser.role==='telecaller')d=d.filter(m=>m.agentId===currentUser.id);
-  else if(currentUser.role==='manager'){const myTCs=tcOnly().map(a=>a.id);d=d.filter(m=>myTCs.includes(m.agentId));}
+  else if(currentUser.role==='manager'){const myTCs=tcOnly().map(a=>a.id);d=d.filter(m=>myTCs.includes(m.agentId)||m.agentId===currentUser.id);}
   if(tcf)d=d.filter(m=>m.agentId==tcf);
   if(sf)d=d.filter(m=>m.status===sf);
   if(df)d=d.filter(m=>m.date===df);
@@ -1448,7 +1448,7 @@ function rLeads(list){
   const af=document.getElementById('lf-agent')?.value;
   let d=list;
   if(currentUser.role==='telecaller')d=d.filter(l=>l.assignedTo===currentUser.id);
-  else if(currentUser.role==='manager'){const myTCs=tcOnly().map(a=>a.id);d=d.filter(l=>!l.assignedTo||myTCs.includes(l.assignedTo));}
+  else if(currentUser.role==='manager'){const myTCs=tcOnly().map(a=>a.id);d=d.filter(l=>!l.assignedTo||myTCs.includes(l.assignedTo)||l.assignedTo===currentUser.id);}
   if(sf)d=d.filter(l=>l.status===sf);
   if(pf2)d=d.filter(l=>l.priority===pf2);
   if(af)d=d.filter(l=>l.assignedTo==af);
@@ -1490,7 +1490,7 @@ function rLeads(list){
           </div>
           <div class="ql-field">
             <span class="ql-label">Follow-up Date</span>
-            <input class="ql-input ql-fu" type="date" style="width:140px">
+            <input class="ql-input ql-fu" type="date" style="width:140px" min="${today}">
           </div>
         </div>
         <div style="margin-top:7px">
@@ -1632,7 +1632,7 @@ function rUsers(){
     </div>`;
   } else {saTools.innerHTML='';}
 
-  const agents=isSA?db.agents:db.agents.filter(a=>a.role!=='superadmin'&&(a.role!=='telecaller'||a.managerId===currentUser.id||a.id===currentUser.id));
+  const agents=isSA?db.agents:db.agents.filter(a=>a.role==='telecaller'&&a.managerId===currentUser.id||a.id===currentUser.id);
   const tb=document.getElementById('utb');
   tb.innerHTML=agents.map(a=>{
     const calls=db.calls.filter(c=>c.agentId===a.id).length;
@@ -1904,7 +1904,7 @@ function gF(type,d){
       🔧 <strong>Service Call</strong> — outcomes track resolution status. "Issue Resolved" marks the ticket as closed.
     </div>
     <div class="fr">
-      <div class="fg"><label class="fl">Follow-up Date</label><input class="fi" id="ffu" type="date" value="${d.followupDate||''}"></div>
+      <div class="fg"><label class="fl">Follow-up Date</label><input class="fi" id="ffu" type="date" min="${today}" value="${d.followupDate||''}"></div>
       <div class="fg" id="fgmf" style="display:${d.outcome==='Meeting Fixed'?'flex':'none'};align-items:center;padding-top:20px">
         <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px"><input type="checkbox" id="fcmf" ${d.meetingFixed?'checked':''} style="margin:0">Meeting fixed via this call</label>
       </div>
@@ -1921,7 +1921,7 @@ function gF(type,d){
       </div>
     </div>
     <div class="fr">
-      <div class="fg"><label class="fl">Date *</label><input class="fi" id="fmd2" type="date" value="${d.date||''}"></div>
+      <div class="fg"><label class="fl">Date *</label><input class="fi" id="fmd2" type="date" min="${today}" value="${d.date||''}"></div>
       <div class="fg"><label class="fl">Time</label><input class="fi" id="fmt" type="time" value="${d.time||''}"></div>
     </div>
     <div class="fr">
@@ -1934,7 +1934,7 @@ function gF(type,d){
       <div class="fg"><label class="fl">Deal Value (₹)</label><input class="fi" id="fmdeal" type="number" value="${d.dealValue||''}" placeholder="0"></div>
     </div>
     <div class="fr">
-      <div class="fg"><label class="fl">Next Follow-up Date</label><input class="fi" id="fmfollowup" type="date" value="${d.followupDate||''}"></div>
+      <div class="fg"><label class="fl">Next Follow-up Date</label><input class="fi" id="fmfollowup" type="date" min="${today}" value="${d.followupDate||''}"></div>
       <div class="fg"></div>
     </div>
     <div class="fg"><label class="fl">Notes</label><textarea class="ft" id="fmn">${d.notes||''}</textarea></div>`;
@@ -1945,7 +1945,7 @@ function gF(type,d){
       <div class="fg"><label class="fl">Company</label><input class="fi" id="flco" value="${d.company||''}" placeholder="Company name"></div>
     </div>
     <div class="fr">
-      <div class="fg"><label class="fl">Phone</label><input class="fi" id="flph" value="${d.phone||''}" placeholder="9XXXXXXXXX"></div>
+      <div class="fg"><label class="fl">Phone <span style="color:var(--text3);font-size:11px">(10 digits)</span></label><input class="fi" id="flph" maxlength="10" pattern="[0-9]{10}" value="${d.phone||''}" placeholder="9XXXXXXXXX"></div>
       <div class="fg"><label class="fl">Email</label><input class="fi" id="flem" type="email" value="${d.email||''}" placeholder="email@example.com"></div>
     </div>
     <div class="fr">
@@ -1970,7 +1970,7 @@ function gF(type,d){
       <div class="fg"><label class="fl">Role *</label><select class="fs" id="furl">${roleOptions}</select></div>
     </div>
     <div class="fr">
-      <div class="fg"><label class="fl">Phone</label><input class="fi" id="fuph" value="${d.phone||''}" placeholder="9XXXXXXXXX"></div>
+      <div class="fg"><label class="fl">Phone <span style="color:var(--text3);font-size:11px">(10 digits)</span></label><input class="fi" id="fuph" maxlength="10" pattern="[0-9]{10}" value="${d.phone||''}" placeholder="9XXXXXXXXX"></div>
       <div class="fg"><label class="fl">Email</label><input class="fi" id="fuem" type="email" value="${d.email||''}" placeholder="agent@company.in"></div>
     </div>
     <div class="fr">
@@ -2070,7 +2070,10 @@ function saveM(){
   } else if(t==='leads'){
     const nm=document.getElementById('flnm').value.trim();if(!nm){toast('Name required.','err');return;}
     const tags=getTagsFromModal ? getTagsFromModal() : [];
-    const data={name:nm,company:document.getElementById('flco').value.trim(),phone:document.getElementById('flph').value.trim(),email:document.getElementById('flem').value.trim(),priority:document.getElementById('flpr').value,status:document.getElementById('flst').value,assignedTo:parseInt(document.getElementById('flas').value)||null,source:document.getElementById('flso').value,tags,attempts:eid?(db.leads.find(x=>x.id===eid)?.attempts||0):0,lastCalled:eid?(db.leads.find(x=>x.id===eid)?.lastCalled||''):''};
+    const _ph=document.getElementById('flph').value.trim();
+    if(_ph&&!/^\d{10}$/.test(_ph)){toast('Phone must be exactly 10 digits','err');return;}
+    if(_ph&&!eid&&db.leads.some(l=>l.phone===_ph)){toast('A lead with this phone already exists!','err');return;}
+    const data={name:nm,company:document.getElementById('flco').value.trim(),phone:_ph,email:document.getElementById('flem').value.trim(),priority:document.getElementById('flpr').value,status:document.getElementById('flst').value,assignedTo:parseInt(document.getElementById('flas').value)||null,source:document.getElementById('flso').value,tags,attempts:eid?(db.leads.find(x=>x.id===eid)?.attempts||0):0,lastCalled:eid?(db.leads.find(x=>x.id===eid)?.lastCalled||''):''};
     if(eid){Object.assign(db.leads.find(x=>x.id===eid),data);toast('Lead updated.','ok');}
     else{db.leads.unshift({id:db.nL++,...data});toast('Lead added!','ok');}
     saveDB();rLeads(db.leads);
@@ -2086,7 +2089,9 @@ function saveM(){
     const mgrId=mgrIdRaw?parseInt(mgrIdRaw):null;
     // Manager assignment is required for telecallers
     if(role==='telecaller'&&!mgrId){toast('Please assign a Manager to this telecaller.','err');return;}
-    const data={name:nm,role,phone:document.getElementById('fuph').value.trim(),email:document.getElementById('fuem').value.trim(),pin,dailyTarget:parseInt(document.getElementById('futgt').value)||60,status:document.getElementById('fust').value,managerId:role==='telecaller'?mgrId:null,profileType:document.getElementById('fuprofile')?.value||'meetings'};
+    const _uph=document.getElementById('fuph').value.trim();
+    if(_uph&&!/^\d{10}$/.test(_uph)){toast('Phone must be exactly 10 digits','err');return;}
+    const data={name:nm,role,phone:_uph,email:document.getElementById('fuem').value.trim(),pin,dailyTarget:parseInt(document.getElementById('futgt').value)||60,status:document.getElementById('fust').value,managerId:role==='telecaller'?mgrId:null,profileType:document.getElementById('fuprofile')?.value||'meetings'};
     if(eid){Object.assign(db.agents.find(x=>x.id===eid),data);toast('User updated.','ok');}
     else{db.agents.push({id:db.nA++,...data});toast('User added!','ok');}
     saveDB();rUsers();populateLoginUsers();
@@ -2096,7 +2101,16 @@ function saveM(){
 
 function dC(id){if(!confirm('Delete this call?'))return;db.calls=db.calls.filter(x=>x.id!==id);if(!db.deletedIds)db.deletedIds=[];db.deletedIds.push({type:'calls',id});saveDB();rCalls();toast('Deleted.','ok');ub();syncNow();}
 function dM(id){if(!confirm('Delete this meeting?'))return;db.meetings=db.meetings.filter(x=>x.id!==id);if(!db.deletedIds)db.deletedIds=[];db.deletedIds.push({type:'meetings',id});saveDB();rMeet();toast('Deleted.','ok');ub();syncNow();}
-function dL(id){if(!confirm('Delete this lead?'))return;db.leads=db.leads.filter(x=>x.id!==id);if(!db.deletedIds)db.deletedIds=[];db.deletedIds.push({type:'leads',id});saveDB();rLeads(db.leads);toast('Deleted.','ok');ub();syncNow();}
+function dL(id){
+  if(!confirm('Delete this lead and all its calls/meetings?'))return;
+  db.leads=db.leads.filter(x=>x.id!==id);
+  // Also remove related calls and meetings
+  db.calls=db.calls.filter(x=>x.leadId!==id);
+  db.meetings=db.meetings.filter(x=>x.leadId!==id);
+  if(!db.deletedIds)db.deletedIds=[];
+  db.deletedIds.push({type:'leads',id},{type:'calls_lead',id},{type:'meetings_lead',id});
+  saveDB();rLeads(db.leads);toast('Lead and related records deleted.','ok');ub();syncNow();
+}
 function dU(id){
   const a=db.agents.find(x=>x.id===id);
   if(!a){return;}
@@ -2104,9 +2118,11 @@ function dU(id){
   if(a.role==='manager'&&currentUser.role!=='superadmin'){toast('Only Super Admin can delete managers.','err');return;}
   if(!confirm(`Delete user "${a.name}"? This cannot be undone.`))return;
   db.agents=db.agents.filter(x=>x.id!==id);
+  // Unassign their leads so they don't become orphaned
+  db.leads.forEach(l=>{if(l.assignedTo===id)l.assignedTo=null;});
   if(!db.deletedIds)db.deletedIds=[];
   db.deletedIds.push({type:'agents',id});
-  saveDB();rUsers();populateLoginUsers();toast('User deleted.','ok');ub();syncNow();
+  saveDB();rUsers();populateLoginUsers();toast('User deleted. Their leads have been unassigned.','ok');ub();syncNow();
 }
 
 // ── SUPER ADMIN ACTIONS ───────────────────────────────────────
@@ -2240,7 +2256,7 @@ function doXLImport(){
     const name=String(row[cm.nameIdx]||'').trim();
     if(!name)return;
     const company=String(row[cm.coIdx]||'').trim();
-    const phone=String(row[cm.phIdx]||'').trim();
+    const phone=String(row[cm.phIdx]||'').replace(/\D/g,'').slice(0,10);
     const email=String(row[cm.emIdx]||'').trim();
     const source=String(row[cm.srcIdx]||'Cold Call').trim()||'Cold Call';
     const priority=String(row[cm.prIdx]||'Warm').trim()||'Warm';
@@ -2250,6 +2266,8 @@ function doXLImport(){
       const ag=db.agents.find(a=>a.name.toLowerCase()===String(row[cm.asIdx]).toLowerCase()&&a.role==='telecaller');
       if(ag)assigned=ag.id;
     }
+    // Skip if phone already exists
+    if(phone&&db.leads.some(l=>l.phone===phone)){return;}
     db.leads.unshift({id:db.nL++,name,company,phone,email,source,priority,status,assignedTo:assigned,attempts:0,lastCalled:'',tags:[],importedAt:new Date().toISOString()});
     count++;
   });
@@ -2293,6 +2311,7 @@ function doImport(){
       const ag=db.agents.find(a=>a.name.toLowerCase()===cols[7].toLowerCase()&&a.role==='telecaller');
       if(ag)assigned=ag.id;
     }
+    if(phone&&db.leads.some(l=>l.phone===phone)){return;} // skip duplicate phone
     db.leads.unshift({id:db.nL++,name,company,phone,email,source,priority,status,assignedTo:assigned,attempts:0,lastCalled:'',tags:[],importedAt:new Date().toISOString()});
     count++;
   });
