@@ -1964,7 +1964,7 @@ function gF(type,d){
       </div>
     </div>
     <div class="fr">
-      <div class="fg"><label class="fl">Date *</label><input class="fi" id="fmd2" type="date" min="${today}" value="${d.date||''}"></div>
+      <div class="fg"><label class="fl">Date *</label><input class="fi" id="fmd2" type="date" value="${d.date||''}">
       <div class="fg"><label class="fl">Time</label><input class="fi" id="fmt" type="time" value="${d.time||''}"></div>
     </div>
     <div class="fr">
@@ -1977,7 +1977,7 @@ function gF(type,d){
       <div class="fg"><label class="fl">Deal Value (₹)</label><input class="fi" id="fmdeal" type="number" value="${d.dealValue||''}" placeholder="0"></div>
     </div>
     <div class="fr">
-      <div class="fg"><label class="fl">Next Follow-up Date</label><input class="fi" id="fmfollowup" type="date" min="${today}" value="${d.followupDate||''}"></div>
+      <div class="fg"><label class="fl">Next Follow-up Date</label><input class="fi" id="fmfollowup" type="date" value="${d.followupDate||''}"></div>
       <div class="fg"></div>
     </div>
     <div class="fg"><label class="fl">Notes</label><textarea class="ft" id="fmn">${d.notes||''}</textarea></div>`;
@@ -2118,7 +2118,8 @@ function saveM(){
     }
     if(!li||!ai||!dt){toast('Fill all required fields.','err');return;}
     const lead=db.leads.find(x=>x.id===li),agent=db.agents.find(x=>x.id===ai);
-    const data={leadId:li,leadName:lead?lead.name:'—',agentId:ai,agentName:agent?agent.name:'—',date:dt,time:document.getElementById('fmt').value,mode:document.getElementById('fmm').value,location:document.getElementById('fmloc').value.trim(),status:document.getElementById('fmst').value,meetingOutcome:document.getElementById('fmout').value,dealValue:document.getElementById('fmdeal').value,followupDate:document.getElementById('fmfollowup').value,notes:document.getElementById('fmn').value.trim()};
+    const mStatus=document.getElementById('fmst')?.value||'Scheduled';
+    const data={leadId:li,leadName:lead?lead.name:'—',agentId:ai,agentName:agent?agent.name:'—',date:dt,time:document.getElementById('fmt').value||'',mode:document.getElementById('fmm').value||'',location:document.getElementById('fmloc').value.trim(),status:mStatus,meetingOutcome:document.getElementById('fmout').value||'',dealValue:document.getElementById('fmdeal').value||'',followupDate:document.getElementById('fmfollowup').value||'',notes:document.getElementById('fmn').value.trim()};
     if(eid){Object.assign(db.meetings.find(x=>x.id===eid),data);toast('Meeting updated.','ok');}
     else{db.meetings.push({id:db.nM++,...data});toast('Meeting scheduled!','ok');}
     saveDB();rMeet();ub();
