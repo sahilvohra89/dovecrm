@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DoveCRM — Dovetail Solutions</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"><\/script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{
   --bg:#f0efe8;--surface:#fff;--surface2:#e8e7df;--border:rgba(0,0,0,.07);--border2:rgba(0,0,0,.13);
@@ -2139,6 +2139,7 @@ function restoreBackup(){
 }
 
 // ── IMPORT / EXPORT ───────────────────────────────────────────
+let _xlImportRows=[];
 function openImport(){
   const note=document.getElementById('import-role-note');
   if(note){
@@ -2155,7 +2156,6 @@ function openImport(){
   switchImportTab('xl'); _xlImportRows=[];
 
 function closeImport(){document.getElementById('import-mov').classList.remove('open');}
-let _xlImportRows=[];
 function switchImportTab(tab){
   document.getElementById('imp-panel-xl').style.display=tab==='xl'?'block':'none';
   document.getElementById('imp-panel-csv').style.display=tab==='csv'?'block':'none';
