@@ -2103,8 +2103,23 @@ async function syncNow(){
   }catch(e){console.error('Sync error:',e);updateSyncUI('err');}finally{syncing=false;}
 }
 function mergeDB(local,remote){
-  function mergeArr(loc,rem){const map=new Map();loc.forEach(x=>map.set(x.id,x));rem.forEach(x=>map.set(x.id,x));return Array.from(map.values());}
-  return{...remote,calls:mergeArr(local.calls,remote.calls||[]),leads:mergeArr(local.leads,remote.leads||[]),meetings:mergeArr(local.meetings,remote.meetings||[]),agents:mergeArr(local.agents,remote.agents||[]),nA:Math.max(local.nA||0,remote.nA||0),nL:Math.max(local.nL||0,remote.nL||0),nC:Math.max(local.nC||0,remote.nC||0),nM:Math.max(local.nM||0,remote.nM||0)};
+  function mergeArr(loc,rem){
+    const map=new Map();
+    loc.forEach(x=>map.set(x.id,x));
+    rem.forEach(x=>map.set(x.id,x)); // remote wins — new users/data from sheet propagate
+    return Array.from(map.values());
+  }
+  return{
+    ...remote,
+    calls:mergeArr(local.calls,remote.calls||[]),
+    leads:mergeArr(local.leads,remote.leads||[]),
+    meetings:mergeArr(local.meetings,remote.meetings||[]),
+    agents:mergeArr(local.agents,remote.agents||[]),
+    nA:Math.max(local.nA||0,remote.nA||0),
+    nL:Math.max(local.nL||0,remote.nL||0),
+    nC:Math.max(local.nC||0,remote.nC||0),
+    nM:Math.max(local.nM||0,remote.nM||0)
+  };
 }
 setInterval(()=>{if(currentUser&&cfg.gsUrl)syncNow();},60000); // sync every 60s (was 180s) for faster user/data propagation
 
@@ -2234,9 +2249,28 @@ function copyGASCode(){
 }
 
 // ── INIT ──────────────────────────────────────────────────────
-populateLoginUsers();
-if(checkSession()){startApp();}
-else{document.getElementById('login-screen').style.display='flex';}
+// Pull latest data from Google Sheet BEFORE showing login
+// so new users added on other systems appear in the login dropdown
+async function initApp(){
+  populateLoginUsers();
+  if(cfg.gsUrl){
+    try{
+      const r=await fetch(cfg.gsUrl+'?action=read');
+      const txt=await r.text();
+      if(txt&&txt!=='null'&&txt!=='undefined'){
+        const remoteDB=JSON.parse(txt);
+        if(remoteDB&&remoteDB.agents){
+          db=mergeDB(db,remoteDB);
+          saveDB();
+          populateLoginUsers(); // refresh login dropdown with latest users
+        }
+      }
+    }catch(e){console.warn('Pre-login sync failed:',e);}
+  }
+  if(checkSession()){startApp();}
+  else{document.getElementById('login-screen').style.display='flex';}
+}
+initApp();
 
 // ══════════════════════════════════════════════════════════════
 // FEATURE: AUTO LOGOUT AFTER 1 HOUR
