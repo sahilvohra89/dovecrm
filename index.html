@@ -794,35 +794,20 @@ function saveDB(){localStorage.setItem(SK,JSON.stringify(db));}
 function loadCfg(){try{const s=localStorage.getItem(CFG_KEY);return s?JSON.parse(s):{gsUrl:'',gsSheet:'DoveCRM',targets:{},lastSync:null};}catch{return{gsUrl:'',gsSheet:'DoveCRM',targets:{},lastSync:null};}}
 function saveCfg(){localStorage.setItem(CFG_KEY,JSON.stringify(cfg));}
 
-function seed(){return{
-  agents:[
-    {id:1,name:'Super Admin',role:'superadmin',phone:'9800000000',email:'superadmin@co.in',pin:'9999',status:'Active',dailyTarget:0,managerId:null},
-    {id:2,name:'Manager',role:'manager',phone:'9810000000',email:'manager@co.in',pin:'1234',status:'Active',dailyTarget:0,managerId:null},
-    {id:3,name:'Sunita Verma',role:'telecaller',phone:'9810011111',email:'sunita@co.in',pin:'0000',status:'Active',dailyTarget:60,managerId:2},
-    {id:4,name:'Ravi Kumar',role:'telecaller',phone:'9820022222',email:'ravi@co.in',pin:'0000',status:'Active',dailyTarget:60,managerId:2},
-    {id:5,name:'Pooja Singh',role:'telecaller',phone:'9830033333',email:'pooja@co.in',pin:'0000',status:'Active',dailyTarget:50,managerId:2},
-  ],
-  leads:[
-    {id:1,name:'Anika Sharma',company:'TechNova',phone:'9900011111',email:'anika@technova.in',status:'Interested',assignedTo:3,source:'Website',priority:'Hot',attempts:3,lastCalled:'2024-06-10',tags:['Demo','Enterprise']},
-    {id:2,name:'Raj Mehta',company:'Growfast',phone:'9900022222',email:'raj@growfast.com',status:'Contacted',assignedTo:4,source:'Referral',priority:'Warm',attempts:1,lastCalled:'2024-06-10',tags:['Service','Referral']},
-    {id:3,name:'Priya Nair',company:'BrightSoft',phone:'9900033333',email:'priya@brightsoft.io',status:'Meeting Done',assignedTo:3,source:'Cold Call',priority:'Hot',attempts:4,lastCalled:'2024-06-09',tags:['Demo','Hot Lead']},
-    {id:4,name:'Arjun Singh',company:'CloudBase',phone:'9900044444',email:'arjun@cloudbase.dev',status:'New',assignedTo:5,source:'LinkedIn',priority:'Warm',attempts:0,lastCalled:'',tags:['Enterprise']},
-    {id:5,name:'Meera Iyer',company:'DataBridge',phone:'9900055555',email:'meera@databridge.co',status:'Not Interested',assignedTo:4,source:'Cold Call',priority:'Cold',attempts:2,lastCalled:'2024-06-08',tags:['Service']},
-    {id:6,name:'Vikram Patel',company:'SoftWave',phone:'9900066666',email:'vikram@softwave.in',status:'New',assignedTo:3,source:'LinkedIn',priority:'Hot',attempts:0,lastCalled:'',tags:['Hot Lead','Upsell']},
-  ],
-  calls:[
-    {id:1,leadId:1,leadName:'Anika Sharma',agentId:3,agentName:'Sunita Verma',datetime:'2024-06-10T10:30',callType:'Customer Call',outcome:'Meeting Fixed',duration:8,meetingFixed:true,followupDate:'2024-06-12',notes:'Very interested in enterprise plan.'},
-    {id:2,leadId:2,leadName:'Raj Mehta',agentId:4,agentName:'Ravi Kumar',datetime:'2024-06-10T11:15',callType:'Customer Call',outcome:'Callback',duration:3,meetingFixed:false,followupDate:'2024-06-13',notes:'Call back Thursday.'},
-    {id:3,leadId:3,leadName:'Priya Nair',agentId:3,agentName:'Sunita Verma',datetime:'2024-06-09T14:00',callType:'Customer Call',outcome:'Meeting Fixed',duration:12,meetingFixed:true,followupDate:'',notes:'Confirmed meeting for Friday.'},
-    {id:4,leadId:4,leadName:'Arjun Singh',agentId:5,agentName:'Pooja Singh',datetime:'2024-06-10T09:00',callType:'Customer Call',outcome:'Interested',duration:6,meetingFixed:false,followupDate:'2024-06-14',notes:'Wants product demo.'},
-    {id:5,leadId:5,leadName:'Meera Iyer',agentId:4,agentName:'Ravi Kumar',datetime:'2024-06-08T16:00',callType:'Service Call',outcome:'Not Interested',duration:2,meetingFixed:false,followupDate:'',notes:'Using a competitor.'},
-  ],
-  meetings:[
-    {id:1,leadId:1,leadName:'Anika Sharma',agentId:3,agentName:'Sunita Verma',date:'2024-06-12',time:'11:00',mode:'In Person',location:'TechNova Office, Sector 62, Noida',status:'Scheduled',meetingOutcome:'',dealValue:'',followupDate:'',notes:'Demo of enterprise suite.'},
-    {id:2,leadId:3,leadName:'Priya Nair',agentId:3,agentName:'Sunita Verma',date:'2024-06-11',time:'15:00',mode:'In Person',location:'BrightSoft HQ, Whitefield, Bangalore',status:'Completed',meetingOutcome:'Converted',dealValue:'85000',followupDate:'',notes:'Signed up for trial.'},
-  ],
-  nA:6,nL:7,nC:6,nM:3,
-};}
+function seed(){
+  // Minimal seed — only Super Admin, no sample data
+  // All real users/leads are loaded from Google Sheet on first sync
+  return{
+    agents:[
+      {id:1,name:'Super Admin',role:'superadmin',phone:'',email:'',pin:'9999',status:'Active',dailyTarget:0,managerId:null},
+    ],
+    leads:[],
+    calls:[],
+    meetings:[],
+    deletedIds:[],
+    nA:2,nL:1,nC:1,nM:1,
+  };
+}
 
 let db=loadDB();
 let cfg=loadCfg();
@@ -1919,6 +1904,11 @@ function lOpts(s){
   let leads=db.leads;
   if(currentUser.role==='telecaller') leads=leads.filter(l=>l.assignedTo===currentUser.id);
   else if(currentUser.role==='manager'){const myTCs=tcOnly().map(a=>a.id);leads=leads.filter(l=>!l.assignedTo||myTCs.includes(l.assignedTo));}
+  // Always include the currently selected lead even if not in filtered list (for editing)
+  if(s&&!leads.find(l=>l.id==s)){
+    const missing=db.leads.find(l=>l.id==s);
+    if(missing)leads=[...leads,missing];
+  }
   return leads.map(l=>`<option value="${l.id}" ${s==l.id?'selected':''}>${l.name}${l.company?' ('+l.company+')':''}</option>`).join('');
 }
 
@@ -2088,7 +2078,13 @@ function cm(){document.getElementById('mov').classList.remove('open');eid=null;}
 function saveM(){
   const t=et;
   if(t==='calls'){
-    const li=parseInt(document.getElementById('fl').value),ai=parseInt(document.getElementById('fag').value),dt=document.getElementById('fdt').value,oc2=document.getElementById('foc').value;
+    let li=parseInt(document.getElementById('fl').value),ai=parseInt(document.getElementById('fag').value);
+    const dt=document.getElementById('fdt').value,oc2=document.getElementById('foc').value;
+    // If editing and li/ai missing, fall back to existing call data
+    if(eid&&(!li||!ai)){
+      const existingCall=db.calls.find(x=>x.id===eid);
+      if(existingCall){if(!li)li=existingCall.leadId;if(!ai)ai=existingCall.agentId;}
+    }
     if(!li||!ai||!dt||!oc2){toast('Fill all required fields.','err');return;}
     const lead=db.leads.find(x=>x.id===li),agent=db.agents.find(x=>x.id===ai);
     const mf=oc2==='Meeting Fixed'||(document.getElementById('fcmf')?.checked||false);
@@ -2113,7 +2109,13 @@ function saveM(){
     }
     saveDB();rCalls();ub();
   } else if(t==='meetings'){
-    const li=parseInt(document.getElementById('fml').value),ai=parseInt(document.getElementById('fma2').value),dt=document.getElementById('fmd2').value;
+    let li=parseInt(document.getElementById('fml').value),ai=parseInt(document.getElementById('fma2').value);
+    const dt=document.getElementById('fmd2').value;
+    // If editing and li/ai missing, fall back to existing meeting data
+    if(eid&&(!li||!ai)){
+      const existingMeet=db.meetings.find(x=>x.id===eid);
+      if(existingMeet){if(!li)li=existingMeet.leadId;if(!ai)ai=existingMeet.agentId;}
+    }
     if(!li||!ai||!dt){toast('Fill all required fields.','err');return;}
     const lead=db.leads.find(x=>x.id===li),agent=db.agents.find(x=>x.id===ai);
     const data={leadId:li,leadName:lead?lead.name:'—',agentId:ai,agentName:agent?agent.name:'—',date:dt,time:document.getElementById('fmt').value,mode:document.getElementById('fmm').value,location:document.getElementById('fmloc').value.trim(),status:document.getElementById('fmst').value,meetingOutcome:document.getElementById('fmout').value,dealValue:document.getElementById('fmdeal').value,followupDate:document.getElementById('fmfollowup').value,notes:document.getElementById('fmn').value.trim()};
@@ -2563,15 +2565,17 @@ function renderTimeline(leadId){
 let syncing=false;
 function updateSyncUI(status){
   const dot=document.getElementById('sync-dot'),txt=document.getElementById('sync-text'),btn=document.getElementById('sync-btn');
-  if(status==='ok'){dot.style.background='#16a34a';txt.textContent='Synced '+new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});}
-  else if(status==='err'){dot.style.background='#dc2626';txt.textContent='Sync failed';}
+  const now=new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  if(status==='ok'){dot.style.background='#16a34a';txt.textContent='Synced '+now;}
+  else if(status==='err'){dot.style.background='#dc2626';txt.textContent='Sync failed · '+now;}
   else if(status==='syncing'){dot.style.background='#d97706';txt.textContent='Syncing…';}
-  else{dot.style.background='#d1d5db';txt.textContent='Local only';}
-  btn.classList.toggle('syncing',status==='syncing');
+  else{dot.style.background='#d1d5db';txt.textContent='Not connected';}
+  if(btn)btn.classList.toggle('syncing',status==='syncing');
 }
+let _syncPending=false;
 async function syncNow(){
   if(!cfg.gsUrl){updateSyncUI('none');return;}
-  if(syncing)return;
+  if(syncing){_syncPending=true;return;} // queue one more sync after current finishes
   syncing=true;updateSyncUI('syncing');
   try{
     let remoteDB=null;
@@ -2612,7 +2616,7 @@ async function syncNow(){
     } else {
       throw new Error('Write failed: '+wrTxt);
     }
-  }catch(e){console.error('Sync error:',e);updateSyncUI('err');}finally{syncing=false;}
+  }catch(e){console.error('Sync error:',e);updateSyncUI('err');}finally{syncing=false;if(_syncPending){_syncPending=false;setTimeout(syncNow,500);}}
 }
 function mergeDB(local,remote){
   // Collect all deleted IDs from both sides
@@ -2664,7 +2668,7 @@ function mergeDB(local,remote){
     nM:Math.max(local.nM||0,remote.nM||0)
   };
 }
-setInterval(()=>{if(currentUser&&cfg.gsUrl)syncNow();},60000); // sync every 60s (was 180s) for faster user/data propagation
+setInterval(()=>{if(currentUser&&cfg.gsUrl)syncNow();},10000); // sync every 10s for near real-time sync
 
 // ── GAS CODE ──────────────────────────────────────────────────
 const GAS_CODE=`// DoveCRM — Google Apps Script by Dovetail Solutions
