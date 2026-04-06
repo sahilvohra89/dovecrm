@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DoveCRM — Dovetail Solutions</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"><\/script>
 <style>
 :root{
   --bg:#f0efe8;--surface:#fff;--surface2:#e8e7df;--border:rgba(0,0,0,.07);--border2:rgba(0,0,0,.13);
@@ -258,6 +259,12 @@ tr:hover td{background:#faf9f5;}
 .tag-pill button{background:none;border:none;cursor:pointer;padding:0;line-height:1;font-size:12px;color:inherit;opacity:.7;}
 .tag-pill button:hover{opacity:1;}
 
+/* ── LEAD HISTORY & NOTES ── */
+#history-mov .modal{overflow:hidden;}
+.note-card{background:var(--bg);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:8px;border-left:3px solid var(--accent);}
+.timeline-dot{position:absolute;left:-20px;top:4px;width:10px;height:10px;border-radius:50%;border:2px solid var(--surface);}
+.timeline-event{position:relative;margin-bottom:16px;padding-left:0;}
+
 /* ── REMINDERS ── */
 .reminder-bell{position:relative;cursor:pointer;padding:6px;border-radius:var(--r-sm);transition:all .12s;color:var(--text2);}
 .reminder-bell:hover{background:var(--bg);color:var(--text);}
@@ -407,12 +414,47 @@ tr:hover td{background:#faf9f5;}
 
   <div class="exp-bar" id="expbar" style="display:none">
     <span class="el">⬇ Export:</span>
-    <button class="btn btn-sm btn-g" onclick="dlC('calls')">Calls CSV</button>
-    <button class="btn btn-sm btn-g" onclick="dlC('meetings')">Meetings CSV</button>
-    <button class="btn btn-sm btn-g" onclick="dlC('leads')">Leads CSV</button>
-    <button class="btn btn-sm" onclick="dlC('agents')">Users CSV</button>
-    <button class="btn btn-sm" onclick="dlC('report')">Performance CSV</button>
+    <span class="el" style="color:var(--text3);font-size:11px">CSV:</span>
+    <button class="btn btn-sm btn-g" onclick="dlC('calls')">Calls</button>
+    <button class="btn btn-sm btn-g" onclick="dlC('meetings')">Meetings</button>
+    <button class="btn btn-sm btn-g" onclick="dlC('leads')">Leads</button>
+    <button class="btn btn-sm" onclick="dlC('agents')">Users</button>
+    <button class="btn btn-sm" onclick="dlC('report')">Report</button>
+    <span class="el" style="color:var(--text3);font-size:11px;margin-left:8px">Excel:</span>
+    <button class="btn btn-sm btn-g" onclick="dlXL('leads')" style="background:#217346;color:#fff;border-color:#217346">📊 Leads XL</button>
+    <button class="btn btn-sm btn-g" onclick="dlXL('calls')" style="background:#217346;color:#fff;border-color:#217346">📊 Calls XL</button>
+    <button class="btn btn-sm btn-g" onclick="dlXL('report')" style="background:#217346;color:#fff;border-color:#217346">📊 Report XL</button>
     <button class="btn btn-sm" onclick="dlJ()">Backup JSON</button>
+  </div>
+
+  <!-- LEAD HISTORY & NOTES MODAL -->
+  <div class="modal-ov" id="history-mov" onclick="if(event.target===this)closeHistory()">
+    <div class="modal" style="width:680px;max-height:85vh;display:flex;flex-direction:column">
+      <div class="mh">
+        <div>
+          <h2 id="history-title">📋 Lead History</h2>
+          <div id="history-subtitle" style="font-size:12px;color:var(--text3);margin-top:2px"></div>
+        </div>
+        <button class="mx" onclick="closeHistory()">×</button>
+      </div>
+      <div class="mb" style="overflow-y:auto;flex:1">
+        <!-- Internal Notes -->
+        <div style="margin-bottom:18px">
+          <div style="font-weight:700;font-size:13px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
+            <span>📝 Internal Notes</span>
+            <span style="font-size:11px;color:var(--text3);font-weight:400">Only visible to team (not synced to lead)</span>
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:10px">
+            <textarea id="new-note-text" class="fi" rows="2" placeholder="Add a note about this lead…" style="flex:1;resize:none;font-family:inherit"></textarea>
+            <button class="btn btn-p" style="align-self:flex-end" onclick="saveInternalNote()">Add Note</button>
+          </div>
+          <div id="notes-list"></div>
+        </div>
+        <!-- Timeline -->
+        <div style="font-weight:700;font-size:13px;margin-bottom:12px">📞 Activity Timeline</div>
+        <div id="history-timeline"></div>
+      </div>
+    </div>
   </div>
 
   <div class="content">
@@ -437,6 +479,13 @@ tr:hover td{background:#faf9f5;}
     </div>
 
     <!-- TELECALLER DASHBOARD -->
+    <!-- Overdue Follow-up Alert Banner -->
+    <div id="overdue-alert-bar" style="display:none;background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;padding:10px 20px;display:none;align-items:center;gap:12px;font-size:13px;font-weight:500">
+      <span style="font-size:18px">⚠️</span>
+      <span id="overdue-alert-text">You have overdue follow-ups!</span>
+      <button onclick="navigateTo('leads');document.getElementById('overdue-alert-bar').style.display='none'" style="margin-left:auto;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);color:#fff;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">View Now →</button>
+      <button onclick="this.parentElement.style.display='none'" style="background:none;border:none;color:rgba(255,255,255,.7);cursor:pointer;font-size:18px;padding:0 4px">×</button>
+    </div>
     <div class="view" id="view-my-dashboard">
       <!-- Adaptive KPI grid — all 8 metrics, active ones highlighted -->
       <div class="kpi-grid" id="my-kpi-grid"></div>
@@ -511,7 +560,12 @@ tr:hover td{background:#faf9f5;}
           <option value="">All Priority</option><option>Hot</option><option>Warm</option><option>Cold</option>
         </select>
         <select class="fi" id="lf-agent" style="width:160px" onchange="rLeads(db.leads)"><option value="">All Telecallers</option></select>
-        <button class="btn btn-sm" onclick="openImport()">⬆ Import CSV</button>
+        <select class="fi" id="lf-source" style="width:140px" onchange="rLeads(db.leads)">
+          <option value="">All Sources</option>
+          <option>Cold Call</option><option>Website</option><option>Referral</option>
+          <option>LinkedIn</option><option>WhatsApp</option><option>Other</option>
+        </select>
+        <button class="btn btn-sm" onclick="openImport()">⬆ Import</button>
         <button class="btn btn-sm" onclick="clearLeadFilters()">Clear</button>
       </div>
       <div class="card"><div class="table-wrap"><table><thead><tr>
@@ -630,25 +684,44 @@ tr:hover td{background:#faf9f5;}
 
 <!-- IMPORT MODAL -->
 <div class="modal-ov" id="import-mov" onclick="if(event.target===this)closeImport()">
-  <div class="modal" style="width:580px">
-    <div class="mh"><h2>⬆ Import Leads from CSV</h2><button class="mx" onclick="closeImport()">×</button></div>
+  <div class="modal" style="width:620px">
+    <div class="mh"><h2>⬆ Import Leads</h2><button class="mx" onclick="closeImport()">×</button></div>
     <div class="mb">
       <div id="import-role-note" style="margin-bottom:12px;padding:10px 14px;border-radius:var(--r-sm);font-size:12.5px;line-height:1.6"></div>
-      <p style="font-size:12.5px;color:var(--text2);margin-bottom:8px">
-        Paste CSV rows below (one lead per line). Columns supported:
-      </p>
-      <div style="background:var(--bg);border-radius:var(--r-sm);padding:10px 14px;font-size:12px;font-family:'JetBrains Mono',monospace;margin-bottom:12px;line-height:1.8;color:var(--text2)">
-        <strong style="color:var(--text)">Col 1:</strong> Name* &nbsp;|&nbsp; <strong style="color:var(--text)">Col 2:</strong> Company &nbsp;|&nbsp; <strong style="color:var(--text)">Col 3:</strong> Phone<br>
-        <strong style="color:var(--text)">Col 4:</strong> Email &nbsp;|&nbsp; <strong style="color:var(--text)">Col 5:</strong> Source &nbsp;|&nbsp; <strong style="color:var(--text)">Col 6:</strong> Priority (Hot/Warm/Cold)<br>
-        <strong style="color:var(--text)">Col 7:</strong> Status &nbsp;|&nbsp; <strong style="color:var(--text)">Col 8:</strong> Assign To (Telecaller name, admin only)
+      <!-- Import Tabs -->
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <button class="btn btn-sm btn-p" id="imp-tab-xl" onclick="switchImportTab('xl')">📊 Excel / CSV File</button>
+        <button class="btn btn-sm" id="imp-tab-csv" onclick="switchImportTab('csv')">📋 Paste CSV Text</button>
       </div>
-      <textarea class="ft" id="csv-paste" style="min-height:150px;font-family:'JetBrains Mono',monospace;font-size:12px" placeholder="Anika Sharma,TechNova,9900011111,anika@technova.in,LinkedIn,Hot&#10;Raj Mehta,Growfast,9900022222,raj@growfast.com,Referral,Warm"></textarea>
-      <div id="import-preview" style="margin-top:10px;font-size:12.5px;color:var(--text2)"></div>
+      <!-- Excel Upload Tab -->
+      <div id="imp-panel-xl">
+        <div style="border:2px dashed var(--border2);border-radius:var(--r);padding:24px;text-align:center;margin-bottom:12px;cursor:pointer;transition:all .15s" id="xl-drop-zone" onclick="document.getElementById('xl-file-input').click()" ondragover="event.preventDefault();this.style.borderColor='var(--accent)'" ondragleave="this.style.borderColor='var(--border2)'" ondrop="handleXLDrop(event)">
+          <div style="font-size:32px;margin-bottom:8px">📂</div>
+          <div style="font-weight:600;color:var(--text)">Click to browse or drag & drop</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:4px">Supports .xlsx, .xls, .csv files</div>
+          <input type="file" id="xl-file-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleXLFile(this.files[0])">
+        </div>
+        <div style="background:var(--bg);border-radius:var(--r-sm);padding:10px 14px;font-size:12px;font-family:'JetBrains Mono',monospace;margin-bottom:10px;line-height:1.8;color:var(--text2)">
+          <strong style="color:var(--text)">Required column headers (row 1):</strong><br>
+          Name, Company, Phone, Email, Source, Priority, Status, AssignTo
+        </div>
+        <div id="xl-preview" style="font-size:12.5px;color:var(--text2)"></div>
+        <div id="xl-import-data" style="display:none"></div>
+      </div>
+      <!-- CSV Paste Tab -->
+      <div id="imp-panel-csv" style="display:none">
+        <p style="font-size:12.5px;color:var(--text2);margin-bottom:8px">Paste CSV rows below (one lead per line):</p>
+        <div style="background:var(--bg);border-radius:var(--r-sm);padding:10px 14px;font-size:12px;font-family:'JetBrains Mono',monospace;margin-bottom:12px;line-height:1.8;color:var(--text2)">
+          Name, Company, Phone, Email, Source, Priority, Status, AssignTo
+        </div>
+        <textarea class="ft" id="csv-paste" style="min-height:130px;font-family:'JetBrains Mono',monospace;font-size:12px" placeholder="Anika Sharma,TechNova,9900011111,anika@technova.in,LinkedIn,Hot&#10;Raj Mehta,Growfast,9900022222,raj@growfast.com,Referral,Warm"></textarea>
+        <div id="import-preview" style="margin-top:10px;font-size:12.5px;color:var(--text2)"></div>
+      </div>
     </div>
     <div class="mf">
       <button class="btn" onclick="closeImport()">Cancel</button>
-      <button class="btn btn-sm btn-p" onclick="previewImport()">Preview</button>
-      <button class="btn btn-p" onclick="doImport()">Import Leads</button>
+      <button class="btn btn-sm btn-p" id="imp-preview-btn" onclick="previewImportActive()">Preview</button>
+      <button class="btn btn-p" id="imp-do-btn" onclick="doImportActive()">Import Leads</button>
     </div>
   </div>
 </div>
@@ -758,7 +831,7 @@ function populateLoginUsers(){
   const sel=document.getElementById('login-user');
   if(!sel)return;
   sel.innerHTML='<option value="">Select your name…</option>'+
-    db.agents.filter(a=>a.status==='Active').map(a=>`<option value="${a.id}">${a.name} (${roleLbl(a.role)})</option>`).join('');
+    db.agents.filter(a=>a.status==='Active').map(a=>`<option value="${a.id}">${a.name}</option>`).join('');
   // Show GS URL setup box if not configured
   const gsBox=document.getElementById('gs-setup-box');
   if(gsBox){
@@ -1139,7 +1212,12 @@ function rMyDash(){
 
   // Follow-up queue
   // Deduplicate: keep only the LATEST follow-up per lead (most recent followupDate)
-  const fuRaw=db.calls.filter(c=>c.agentId===uid&&c.followupDate);
+  const _closedSt=new Set(['Closed','Not Interested']);
+  const fuRaw=db.calls.filter(c=>{
+    if(c.agentId!==uid||!c.followupDate)return false;
+    const lead=db.leads.find(l=>l.id===c.leadId);
+    return !lead||!_closedSt.has(lead.status); // hide follow-ups for closed/not-interested leads
+  });
   const fuMap=new Map();
   fuRaw.forEach(c=>{const ex=fuMap.get(c.leadId);if(!ex||c.followupDate>ex.followupDate)fuMap.set(c.leadId,c);});
   const fu=Array.from(fuMap.values()).sort((a,b)=>a.followupDate.localeCompare(b.followupDate));
@@ -1172,7 +1250,7 @@ function rMyDash(){
   document.getElementById('my-outcomes').innerHTML=barColored(outToShow.map(o=>({n:o,v:weekCalls.filter(c=>c.outcome===o).length,c:oc[o]})));
 
   // My Assigned Leads Quick Panel
-  const myLeads=db.leads.filter(l=>l.assignedTo===uid&&l.status!=='Closed'&&l.status!=='Not Interested').sort((a,b)=>{const p={'Hot':0,'Warm':1,'Cold':2};return(p[a.priority]??3)-(p[b.priority]??3);});
+  const myLeads=db.leads.filter(l=>l.assignedTo===uid&&l.status!=='Closed'&&l.status!=='Not Interested'&&l.status!=='Meeting Done'&&l.status!=='Meeting Fixed').sort((a,b)=>{const p={'Hot':0,'Warm':1,'Cold':2};return(p[a.priority]??3)-(p[b.priority]??3);});
   document.getElementById('my-leads-count').textContent=myLeads.length+' active';
   const mlEl=document.getElementById('my-leads-quick');
   if(!myLeads.length){
@@ -1196,6 +1274,8 @@ function rMyDash(){
     +'</tbody></table></div>';
   }
 
+  // Check for overdue follow-ups and show alert
+  checkOverdueFollowups();
   // Meetings pending status update (only mine, only Scheduled)
   const myPendingMeets=db.meetings.filter(m=>m.agentId===uid&&m.status==='Scheduled').sort((a,b)=>a.date.localeCompare(b.date));
   document.getElementById('my-meet-pending-count').textContent=myPendingMeets.length+' pending';
@@ -1271,10 +1351,13 @@ function updateMeetStatus(mid){
   const m=db.meetings.find(x=>x.id===mid);
   if(!m){toast('Meeting not found','err');return;}
   m.status=status;m.meetingOutcome=outcome;m.dealValue=deal;m.followupDate=followupDate;m.notes=notes;
-  // Also update lead status if converted
-  if(outcome==='Converted'){
-    const lead=db.leads.find(l=>l.id===m.leadId);
-    if(lead)lead.status='Closed';
+  // Update lead status based on meeting outcome
+  const lead4=db.leads.find(l=>l.id===m.leadId);
+  if(lead4){
+    if(outcome==='Converted') lead4.status='Closed';
+    else if(outcome==='Lost') lead4.status='Not Interested';
+    else if(outcome==='Follow-up Needed') lead4.status='Interested'; // back to active pipeline
+    else if(outcome==='Demo Done') lead4.status='Interested';
   }
   saveDB();toast('Meeting updated! ✓','ok');rMyDash();ub();syncNow();
 }
@@ -1369,7 +1452,9 @@ function rLeads(list){
   if(sf)d=d.filter(l=>l.status===sf);
   if(pf2)d=d.filter(l=>l.priority===pf2);
   if(af)d=d.filter(l=>l.assignedTo==af);
-  if(q)d=d.filter(l=>(l.name+l.company+l.phone+l.email).toLowerCase().includes(q));
+  const srcF=document.getElementById('lf-source')?.value;
+  if(srcF)d=d.filter(l=>l.source===srcF);
+  if(q)d=d.filter(l=>(l.name+l.company+l.phone+l.email+(l.source||'')).toLowerCase().includes(q));
   d=[...d].sort((a,b)=>{const p={'Hot':0,'Warm':1,'Cold':2};return(p[a.priority]??3)-(p[b.priority]??3);});
   const tb=document.getElementById('ltb');
   if(!d.length){tb.innerHTML='<tr><td colspan="11"><div class="empty"><p>No leads found.</p></div></td></tr>';return;}
@@ -1437,6 +1522,7 @@ function rLeads(list){
         ${canLogCall?`<button class="btn btn-sm btn-p" style="padding:3px 9px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Quick Log</button>`:'<span style="color:var(--text3);font-size:12px">—</span>'}
       </td>
       <td style="white-space:nowrap">
+        <button class="ab" onclick="openHistory(${l.id})" title="View History & Notes">📋</button>
         <button class="ab" onclick="oeL(${l.id})">✏️</button>
         ${isAdmin()?`<button class="ab d" onclick="dL(${l.id})">🗑</button>`:''}
       </td>
@@ -1444,7 +1530,7 @@ function rLeads(list){
     ${qlHtml?`<tr><td colspan="11" style="padding:0 14px 6px;background:var(--accent-bg)">${qlHtml}</td></tr>`:''}`;
   }).join('');
 }
-function clearLeadFilters(){['lf-status','lf-prio','lf-agent'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});rLeads(db.leads);}
+function clearLeadFilters(){['lf-status','lf-prio','lf-agent','lf-source'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});rLeads(db.leads);}
 
 // Quick Log Call — inline panel in Leads table
 let qlOpenId=null;
@@ -1955,7 +2041,15 @@ function saveM(){
     const mf=oc2==='Meeting Fixed'||(document.getElementById('fcmf')?.checked||false);
     const callType=document.getElementById('fctype')?.value||'Customer Call';
     const data={leadId:li,leadName:lead?lead.name:'—',agentId:ai,agentName:agent?agent.name:'—',datetime:dt,callType,outcome:oc2,duration:parseInt(document.getElementById('fdur').value)||0,meetingFixed:mf,followupDate:document.getElementById('ffu').value,notes:document.getElementById('fn').value.trim()};
-    if(eid){Object.assign(db.calls.find(x=>x.id===eid),data);toast('Call updated.','ok');}
+    if(eid){
+      // Recalculate meetingFixed based on current outcome when editing
+      data.meetingFixed = oc2==='Meeting Fixed'||(document.getElementById('fcmf')?.checked||false);
+      Object.assign(db.calls.find(x=>x.id===eid),data);
+      // If meetingFixed changed, update lead status accordingly
+      const editedLead=db.leads.find(x=>x.id===li);
+      if(editedLead&&data.meetingFixed&&editedLead.status==='New') editedLead.status='Meeting Done';
+      toast('Call updated.','ok');
+    }
     else{
       db.calls.unshift({id:db.nC++,...data});toast('Call logged!','ok');
       if(lead){lead.attempts=(lead.attempts||0)+1;lead.lastCalled=dt.split('T')[0];}
@@ -2058,7 +2152,110 @@ function openImport(){
   }
   document.getElementById('import-mov').classList.add('open');
 }
+  switchImportTab('xl'); _xlImportRows=[];
+
 function closeImport(){document.getElementById('import-mov').classList.remove('open');}
+let _xlImportRows=[];
+function switchImportTab(tab){
+  document.getElementById('imp-panel-xl').style.display=tab==='xl'?'block':'none';
+  document.getElementById('imp-panel-csv').style.display=tab==='csv'?'block':'none';
+  document.getElementById('imp-tab-xl').className='btn btn-sm'+(tab==='xl'?' btn-p':'');
+  document.getElementById('imp-tab-csv').className='btn btn-sm'+(tab==='csv'?' btn-p':'');
+}
+function handleXLDrop(e){
+  e.preventDefault();
+  document.getElementById('xl-drop-zone').style.borderColor='var(--border2)';
+  const file=e.dataTransfer.files[0];
+  if(file)handleXLFile(file);
+}
+function handleXLFile(file){
+  if(!file)return;
+  const ext=file.name.split('.').pop().toLowerCase();
+  if(ext==='csv'){
+    const r=new FileReader();
+    r.onload=e=>{
+      document.getElementById('csv-paste').value=e.target.result;
+      switchImportTab('csv');
+      previewImport();
+    };
+    r.readAsText(file);
+    return;
+  }
+  if(typeof XLSX==='undefined'){toast('Excel library not loaded yet. Refresh and try again.','err');return;}
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'binary'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      if(!rows.length){toast('Empty file','err');return;}
+      // Detect header row
+      const hdrs=(rows[0]||[]).map(h=>String(h).toLowerCase().trim());
+      const dataRows=hdrs.includes('name')||hdrs.includes('lead name')?rows.slice(1):rows;
+      _xlImportRows=dataRows;
+      // Map columns by header name if possible
+      const nameIdx=hdrs.indexOf('name')>=0?hdrs.indexOf('name'):0;
+      const coIdx=hdrs.indexOf('company')>=0?hdrs.indexOf('company'):1;
+      const phIdx=hdrs.indexOf('phone')>=0?hdrs.indexOf('phone'):2;
+      const emIdx=hdrs.indexOf('email')>=0?hdrs.indexOf('email'):3;
+      const srcIdx=hdrs.indexOf('source')>=0?hdrs.indexOf('source'):4;
+      const prIdx=hdrs.indexOf('priority')>=0?hdrs.indexOf('priority'):5;
+      const stIdx=hdrs.indexOf('status')>=0?hdrs.indexOf('status'):6;
+      const asIdx=hdrs.indexOf('assignto')>=0?hdrs.indexOf('assignto'):hdrs.indexOf('assign to')>=0?hdrs.indexOf('assign to'):7;
+      window._xlColMap={nameIdx,coIdx,phIdx,emIdx,srcIdx,prIdx,stIdx,asIdx};
+      const valid=dataRows.filter(r=>r[nameIdx]&&String(r[nameIdx]).trim());
+      const prev=document.getElementById('xl-preview');
+      prev.innerHTML=`<div style="padding:10px;background:var(--green-bg);border:1px solid var(--green-b);border-radius:var(--r-sm);margin-bottom:10px">
+        <strong style="color:var(--green)">✓ File loaded: ${file.name}</strong><br>
+        <span style="font-size:12px;color:var(--text2)">${valid.length} leads found ready to import</span>
+      </div>
+      <div style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r-sm);font-size:12px">
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="background:var(--bg)">${['Name','Company','Phone','Source','Priority'].map(h=>`<th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--text3)">${h}</th>`).join('')}</tr></thead>
+          <tbody>${valid.slice(0,5).map(r=>`<tr style="border-top:1px solid var(--border)">${[r[nameIdx],r[coIdx],r[phIdx],r[srcIdx]||'—',r[prIdx]||'Warm'].map(v=>`<td style="padding:5px 10px">${v||'—'}</td>`).join('')}</tr>`).join('')}
+          ${valid.length>5?`<tr><td colspan="5" style="padding:6px 10px;color:var(--text3);font-size:11px">…and ${valid.length-5} more rows</td></tr>`:''}
+          </tbody>
+        </table>
+      </div>`;
+    }catch(err){toast('Could not read file: '+err.message,'err');}
+  };
+  reader.readAsBinaryString(file);
+}
+function previewImportActive(){
+  const xl=document.getElementById('imp-panel-xl');
+  if(xl&&xl.style.display!=='none'&&_xlImportRows.length){
+    toast(_xlImportRows.filter(r=>r[window._xlColMap?.nameIdx||0]).length+' leads ready to import','ok');
+  } else {previewImport();}
+}
+function doImportActive(){
+  const xl=document.getElementById('imp-panel-xl');
+  if(xl&&xl.style.display!=='none'&&_xlImportRows.length){doXLImport();}
+  else{doImport();}
+}
+function doXLImport(){
+  const cm=window._xlColMap||{nameIdx:0,coIdx:1,phIdx:2,emIdx:3,srcIdx:4,prIdx:5,stIdx:6,asIdx:7};
+  const assignTo=currentUser.role==='telecaller'?currentUser.id:null;
+  let count=0;
+  _xlImportRows.forEach(row=>{
+    const name=String(row[cm.nameIdx]||'').trim();
+    if(!name)return;
+    const company=String(row[cm.coIdx]||'').trim();
+    const phone=String(row[cm.phIdx]||'').trim();
+    const email=String(row[cm.emIdx]||'').trim();
+    const source=String(row[cm.srcIdx]||'Cold Call').trim()||'Cold Call';
+    const priority=String(row[cm.prIdx]||'Warm').trim()||'Warm';
+    const status=String(row[cm.stIdx]||'New').trim()||'New';
+    let assigned=assignTo;
+    if(!assigned&&row[cm.asIdx]){
+      const ag=db.agents.find(a=>a.name.toLowerCase()===String(row[cm.asIdx]).toLowerCase()&&a.role==='telecaller');
+      if(ag)assigned=ag.id;
+    }
+    db.leads.unshift({id:db.nL++,name,company,phone,email,source,priority,status,assignedTo:assigned,attempts:0,lastCalled:'',tags:[],importedAt:new Date().toISOString()});
+    count++;
+  });
+  _xlImportRows=[];
+  saveDB();closeImport();rLeads(db.leads);toast(`✓ Imported ${count} lead${count!==1?'s':''}!`,'ok');syncNow();
+}
 function previewImport(){
   const txt=document.getElementById('csv-paste').value.trim();
   const prev=document.getElementById('import-preview');
@@ -2117,7 +2314,165 @@ function dlC(type){
 function dlJ(){dl2('data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(db,null,2)),'dovecrm_backup.json');toast('Backup downloaded!','ok');}
 
 // ── SEARCH ────────────────────────────────────────────────────
+function dlXL(type){
+  if(typeof XLSX==='undefined'){toast('Excel library not loaded yet. Try again.','err');return;}
+  let wb=XLSX.utils.book_new();
+  if(type==='leads'){
+    const ws=XLSX.utils.aoa_to_sheet([
+      ['ID','Name','Company','Phone','Email','Priority','Status','Assigned To','Source','Attempts','Last Called','Tags','Notes'],
+      ...db.leads.map(l=>[l.id,l.name,l.company||'',l.phone||'',l.email||'',l.priority||'',l.status,an(l.assignedTo),l.source||'',l.attempts||0,l.lastCalled||'',(l.tags||[]).join(', '),(l.internalNotes||[]).map(n=>n.text).join(' | ')])
+    ]);
+    // Style header row
+    const range=XLSX.utils.decode_range(ws['!ref']);
+    for(let c=range.s.c;c<=range.e.c;c++){
+      const cell=ws[XLSX.utils.encode_cell({r:0,c})];
+      if(cell){cell.s={font:{bold:true},fill:{fgColor:{rgb:'217346'}}};}
+    }
+    ws['!cols']=[{wch:5},{wch:20},{wch:18},{wch:14},{wch:25},{wch:10},{wch:15},{wch:18},{wch:14},{wch:10},{wch:12},{wch:20},{wch:30}];
+    XLSX.utils.book_append_sheet(wb,ws,'Leads');
+    XLSX.writeFile(wb,'DoveCRM_Leads_'+new Date().toISOString().split('T')[0]+'.xlsx');
+  } else if(type==='calls'){
+    const ws=XLSX.utils.aoa_to_sheet([
+      ['ID','Lead Name','Telecaller','Date & Time','Call Type','Outcome','Duration (min)','Meeting Fixed','Follow-up Date','Notes'],
+      ...db.calls.map(c=>[c.id,c.leadName,c.agentName,c.datetime,c.callType||'Customer Call',c.outcome,c.duration,c.meetingFixed?'Yes':'No',c.followupDate||'',c.notes||''])
+    ]);
+    ws['!cols']=[{wch:5},{wch:20},{wch:18},{wch:18},{wch:16},{wch:16},{wch:12},{wch:14},{wch:14},{wch:30}];
+    XLSX.utils.book_append_sheet(wb,ws,'Calls');
+    XLSX.writeFile(wb,'DoveCRM_Calls_'+new Date().toISOString().split('T')[0]+'.xlsx');
+  } else if(type==='report'){
+    const ws=XLSX.utils.aoa_to_sheet([
+      ['Telecaller','Total Calls','Meetings Fixed','Interested','Not Interested','Not Answered','Callback','Follow-up','Conversion %'],
+      ...tcOnly().map(a=>{const ac=db.calls.filter(c=>c.agentId===a.id),mf=ac.filter(c=>c.meetingFixed).length;
+        return[a.name,ac.length,mf,ac.filter(c=>c.outcome==='Interested').length,ac.filter(c=>c.outcome==='Not Interested').length,
+          ac.filter(c=>c.outcome==='Not Answered').length,ac.filter(c=>c.outcome==='Callback').length,
+          ac.filter(c=>c.outcome==='Follow-up').length,ac.length?Math.round(mf/ac.length*100)+'%':'0%'];})
+    ]);
+    ws['!cols']=[{wch:20},{wch:12},{wch:15},{wch:12},{wch:16},{wch:14},{wch:12},{wch:12},{wch:14}];
+    XLSX.utils.book_append_sheet(wb,ws,'Performance Report');
+    XLSX.writeFile(wb,'DoveCRM_Report_'+new Date().toISOString().split('T')[0]+'.xlsx');
+  }
+  toast('✓ Excel file downloaded!','ok');
+}
 function hs(q){if(cv==='calls')rCalls();if(cv==='meetings')rMeet();if(cv==='leads')rLeads(db.leads);}
+
+// ── LEAD HISTORY & INTERNAL NOTES ──────────────────────────────
+let _historyLeadId=null;
+function openHistory(leadId){
+  const lead=db.leads.find(l=>l.id===leadId);
+  if(!lead)return;
+  _historyLeadId=leadId;
+  document.getElementById('history-title').textContent='📋 '+lead.name;
+  document.getElementById('history-subtitle').textContent=(lead.company||'')+(lead.phone?' · '+lead.phone:'');
+  renderNotes(leadId);
+  renderTimeline(leadId);
+  document.getElementById('history-mov').classList.add('open');
+}
+function closeHistory(){
+  document.getElementById('history-mov').classList.remove('open');
+  _historyLeadId=null;
+}
+function renderNotes(leadId){
+  const lead=db.leads.find(l=>l.id===leadId);
+  if(!lead)return;
+  const notes=(lead.internalNotes||[]).slice().reverse();
+  const el=document.getElementById('notes-list');
+  if(!notes.length){
+    el.innerHTML='<div style="color:var(--text3);font-size:13px;padding:8px 0">No notes yet.</div>';
+    return;
+  }
+  el.innerHTML=notes.map((n,i)=>`
+    <div style="display:flex;align-items:flex-start;gap:10px;padding:10px;background:var(--bg);border-radius:var(--r-sm);margin-bottom:6px">
+      <div style="flex:1">
+        <div style="font-size:13px">${n.text}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:3px">${n.author} · ${new Date(n.at).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
+      </div>
+      ${(isAdmin()||n.authorId===currentUser.id)?`<button onclick="deleteNote(${leadId},${notes.length-1-i})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;padding:0 2px" title="Delete note">×</button>`:''}
+    </div>`).join('');
+}
+function saveInternalNote(){
+  const text=document.getElementById('new-note-text').value.trim();
+  if(!text){toast('Note cannot be empty','err');return;}
+  const lead=db.leads.find(l=>l.id===_historyLeadId);
+  if(!lead)return;
+  if(!lead.internalNotes)lead.internalNotes=[];
+  lead.internalNotes.push({text,author:currentUser.name,authorId:currentUser.id,at:new Date().toISOString()});
+  document.getElementById('new-note-text').value='';
+  saveDB();syncNow();
+  renderNotes(_historyLeadId);
+  toast('✓ Note saved','ok');
+}
+function deleteNote(leadId,idx){
+  if(!confirm('Delete this note?'))return;
+  const lead=db.leads.find(l=>l.id===leadId);
+  if(!lead||!lead.internalNotes)return;
+  // idx is from reversed array, convert back
+  const realIdx=lead.internalNotes.length-1-idx;
+  lead.internalNotes.splice(realIdx,1);
+  saveDB();syncNow();
+  renderNotes(leadId);
+  toast('Note deleted','ok');
+}
+function renderTimeline(leadId){
+  const calls=db.calls.filter(c=>c.leadId===leadId).sort((a,b)=>b.datetime.localeCompare(a.datetime));
+  const meetings=db.meetings.filter(m=>m.leadId===leadId).sort((a,b)=>b.date.localeCompare(a.date));
+  // Merge into timeline
+  const events=[
+    ...calls.map(c=>({type:'call',date:c.datetime,data:c})),
+    ...meetings.map(m=>({type:'meeting',date:m.date+'T'+(m.time||'00:00'),data:m}))
+  ].sort((a,b)=>b.date.localeCompare(a.date));
+  const el=document.getElementById('history-timeline');
+  if(!events.length){
+    el.innerHTML='<div style="color:var(--text3);font-size:13px;padding:8px 0">No activity recorded for this lead yet.</div>';
+    return;
+  }
+  el.innerHTML='<div style="position:relative;padding-left:24px">'+
+    events.map(ev=>{
+      if(ev.type==='call'){
+        const c=ev.data;
+        const color=c.meetingFixed?'var(--green)':c.outcome==='Not Interested'?'var(--red)':'var(--accent)';
+        const icon=c.meetingFixed?'📅':c.callType==='Service Call'?'🔧':c.callType==='Direct Sales Call'?'💰':'📞';
+        return`<div style="position:relative;margin-bottom:16px">
+          <div style="position:absolute;left:-20px;top:3px;width:10px;height:10px;border-radius:50%;background:${color};border:2px solid var(--surface)"></div>
+          <div style="background:var(--bg);border-radius:var(--r-sm);padding:10px 12px">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+              <span style="font-size:14px">${icon}</span>
+              <span style="font-weight:600;font-size:13px">${c.callType||'Customer Call'}</span>
+              <span style="margin-left:auto;font-size:11px;color:var(--text3)">${new Date(c.datetime).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}</span>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+              ${bdg(c.outcome)}
+              ${c.meetingFixed?'<span style="background:var(--green-bg);color:var(--green);padding:1px 7px;border-radius:100px;font-size:11px;font-weight:600">Meeting Fixed ✓</span>':''}
+              ${c.duration?`<span style="font-size:11.5px;color:var(--text3)">${c.duration} min</span>`:''}
+            </div>
+            <div style="font-size:12.5px;color:var(--text2)">${c.agentName}</div>
+            ${c.notes?`<div style="font-size:12px;color:var(--text2);margin-top:4px;padding-top:4px;border-top:1px solid var(--border)">${c.notes}</div>`:''}
+            ${c.followupDate?`<div style="font-size:11.5px;color:var(--amber);margin-top:4px">📅 Follow-up: ${fd(c.followupDate)}</div>`:''}
+          </div>
+        </div>`;
+      } else {
+        const m=ev.data;
+        const color=m.status==='Completed'?'var(--green)':m.status==='Cancelled'?'var(--red)':'var(--purple)';
+        return`<div style="position:relative;margin-bottom:16px">
+          <div style="position:absolute;left:-20px;top:3px;width:10px;height:10px;border-radius:50%;background:${color};border:2px solid var(--surface)"></div>
+          <div style="background:var(--purple-bg);border-radius:var(--r-sm);padding:10px 12px;border:1px solid var(--purple-b)">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+              <span style="font-size:14px">🗓</span>
+              <span style="font-weight:600;font-size:13px">Meeting — ${m.mode||'—'}</span>
+              <span style="margin-left:auto;font-size:11px;color:var(--text3)">${fd(m.date)}${m.time?' at '+m.time:''}</span>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+              ${bdg(m.status)}
+              ${m.meetingOutcome?bdg(m.meetingOutcome):''}
+              ${m.dealValue?`<span style="font-size:11.5px;color:var(--green);font-weight:600">₹${parseInt(m.dealValue).toLocaleString('en-IN')}</span>`:''}
+            </div>
+            <div style="font-size:12.5px;color:var(--text2)">${m.agentName}${m.location?' · '+m.location:''}</div>
+            ${m.notes?`<div style="font-size:12px;color:var(--text2);margin-top:4px;padding-top:4px;border-top:1px solid var(--purple-b)">${m.notes}</div>`:''}
+          </div>
+        </div>`;
+      }
+    }).join('')+
+  '</div>';
+}
 
 // ── SYNC ──────────────────────────────────────────────────────
 let syncing=false;
@@ -2574,8 +2929,37 @@ document.addEventListener('click', e => {
 });
 
 // Check for due reminders every minute
+function checkOverdueFollowups(){
+  if(!currentUser)return;
+  const today=new Date().toISOString().split('T')[0];
+  const closedSt=new Set(['Closed','Not Interested']);
+  const overdue=db.calls.filter(c=>{
+    if(c.agentId!==currentUser.id||!c.followupDate||c.followupDate>today)return false;
+    const lead=db.leads.find(l=>l.id===c.leadId);
+    return !lead||!closedSt.has(lead.status);
+  });
+  // Deduplicate by leadId
+  const uniq=new Map();
+  overdue.forEach(c=>{if(!uniq.has(c.leadId)||c.followupDate<uniq.get(c.leadId).followupDate)uniq.set(c.leadId,c);});
+  const count=uniq.size;
+  const bar=document.getElementById('overdue-alert-bar');
+  if(bar){
+    if(count>0){
+      bar.style.display='flex';
+      const todayCount=[...uniq.values()].filter(c=>c.followupDate===today).length;
+      const overdueCount=[...uniq.values()].filter(c=>c.followupDate<today).length;
+      let msg='';
+      if(overdueCount>0)msg+=`${overdueCount} overdue follow-up${overdueCount>1?'s':''} past due! `;
+      if(todayCount>0)msg+=`${todayCount} follow-up${todayCount>1?'s':''} due today.`;
+      document.getElementById('overdue-alert-text').textContent='⚠️ '+msg.trim();
+    } else {
+      bar.style.display='none';
+    }
+  }
+}
 function checkDueReminders() {
   if (!currentUser) return;
+  checkOverdueFollowups();
   const now = new Date();
   const due = reminders.filter(r =>
     r.userId === currentUser.id &&
@@ -2736,8 +3120,13 @@ function renderAdaptiveKPIs(uid, myCalls, todayCalls, today, dailyTarget) {
   const meetingsFixed    = myCalls.filter(c => c.meetingFixed).length;
   const svcResolved      = svcCalls.filter(c => c.outcome === 'Issue Resolved').length;
   const directClosures   = myMeetings.filter(m => m.meetingOutcome === 'Converted').length;
-  const followupsDue     = db.calls.filter(c => c.agentId===uid && c.followupDate && c.followupDate<=today).length;
-  const myLeads          = db.leads.filter(l => l.assignedTo === uid).length;
+  const closedStatuses = new Set(['Closed','Not Interested','Meeting Done','Meeting Fixed']);
+  const followupsDue     = db.calls.filter(c => {
+    if(c.agentId!==uid || !c.followupDate || c.followupDate>today) return false;
+    const lead = db.leads.find(l=>l.id===c.leadId);
+    return !lead || !closedStatuses.has(lead.status); // only show if lead still active
+  }).length;
+  const myLeads          = db.leads.filter(l => l.assignedTo===uid && !closedStatuses.has(l.status)).length;
   const conv             = myCalls.length ? Math.round(meetingsFixed/myCalls.length*100) : 0;
   const svcResolveRate   = svcCalls.length ? Math.round(svcResolved/svcCalls.length*100) : 0;
 
@@ -2934,6 +3323,30 @@ startApp = function() {
   renderReminders();
   requestNotifPermission();
   autoCreateFollowupReminders();
+  // Show overdue alert after short delay so dashboard loads first
+  if(currentUser.role==='telecaller'||currentUser.role==='manager'){
+    setTimeout(()=>{
+      checkOverdueFollowups();
+      // Show one-time popup for overdue items
+      const today=new Date().toISOString().split('T')[0];
+      const sessionKey='dovecrm_overdue_shown_'+today+'_'+currentUser.id;
+      if(!sessionStorage.getItem(sessionKey)){
+        const closedSt=new Set(['Closed','Not Interested']);
+        const uid=currentUser.id;
+        const overdue=db.calls.filter(c=>{
+          if(c.agentId!==uid||!c.followupDate||c.followupDate>=today)return false;
+          const lead=db.leads.find(l=>l.id===c.leadId);
+          return !lead||!closedSt.has(lead.status);
+        });
+        const uniq=new Map();
+        overdue.forEach(c=>{if(!uniq.has(c.leadId))uniq.set(c.leadId,c);});
+        if(uniq.size>0){
+          toast(`⚠️ You have ${uniq.size} overdue follow-up${uniq.size>1?'s':''}!`,'err');
+          sessionStorage.setItem(sessionKey,'1');
+        }
+      }
+    },2000);
+  }
   // Check due reminders every 60s
   if (reminderCheckInterval) clearInterval(reminderCheckInterval);
   reminderCheckInterval = setInterval(checkDueReminders, 60000);
