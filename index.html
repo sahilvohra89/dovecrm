@@ -1947,7 +1947,7 @@ function gF(type,d){
       🔧 <strong>Service Call</strong> — outcomes track resolution status. "Issue Resolved" marks the ticket as closed.
     </div>
     <div class="fr">
-      <div class="fg"><label class="fl">Follow-up Date</label><input class="fi" id="ffu" type="date" min="${today}" value="${d.followupDate||''}"></div>
+      <div class="fg"><label class="fl">Follow-up Date</label><input class="fi" id="ffu" type="date" value="${d.followupDate||''}"></div>
       <div class="fg" id="fgmf" style="display:${d.outcome==='Meeting Fixed'?'flex':'none'};align-items:center;padding-top:20px">
         <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px"><input type="checkbox" id="fcmf" ${d.meetingFixed?'checked':''} style="margin:0">Meeting fixed via this call</label>
       </div>
@@ -2569,7 +2569,14 @@ function updateSyncUI(status){
   const now=new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   if(status==='ok'){dot.style.background='#16a34a';txt.textContent='Synced '+now;}
   else if(status==='err'){dot.style.background='#dc2626';txt.textContent='Sync failed · '+now;}
-  else if(status==='syncing'){dot.style.background='#d97706';txt.textContent='Syncing…';}
+  else if(status==='syncing'){
+    dot.style.background='#d97706';txt.textContent='Syncing…';
+    // Auto-hide syncing state after 2s if not updated (prevents stuck spinner)
+    clearTimeout(window._syncingTimeout);
+    window._syncingTimeout=setTimeout(()=>{
+      if(txt&&txt.textContent==='Syncing…'){dot.style.background='#16a34a';txt.textContent='Synced';}
+    },3000);
+  }
   else{dot.style.background='#d1d5db';txt.textContent='Not connected';}
   if(btn)btn.classList.toggle('syncing',status==='syncing');
 }
@@ -2669,7 +2676,7 @@ function mergeDB(local,remote){
     nM:Math.max(local.nM||0,remote.nM||0)
   };
 }
-setInterval(()=>{if(currentUser&&cfg.gsUrl)syncNow();},10000); // sync every 10s for near real-time sync
+setInterval(()=>{if(currentUser&&cfg.gsUrl)syncNow();},15000); // sync every 15s
 
 // ── GAS CODE ──────────────────────────────────────────────────
 const GAS_CODE=`// DoveCRM — Google Apps Script by Dovetail Solutions
