@@ -2068,8 +2068,24 @@ async function syncNow(){
       const txt=await r.text();
       if(txt&&txt!=='null'&&txt!=='undefined')remoteDB=JSON.parse(txt);
     }catch{}
-    if(remoteDB&&!isAdmin()){
+    if(remoteDB){
+      // Everyone pulls remote data first so new users/leads/calls appear on all systems
+      // mergeDB: local data wins on conflict (last-write via id-based merge)
       db=mergeDB(db,remoteDB);saveDB();
+      // Refresh UI if logged in
+      if(currentUser){
+        // Re-check currentUser still exists after merge (in case of reset)
+        const stillExists=db.agents.find(a=>a.id===currentUser.id);
+        if(!stillExists){doLogout();return;}
+        // Refresh current view silently
+        if(cv==='dashboard')rDash();
+        else if(cv==='my-dashboard')rMyDash();
+        else if(cv==='users')rUsers();
+        else if(cv==='leads')rLeads(db.leads);
+        else if(cv==='meetings')rMeet();
+        else if(cv==='calls')rCalls();
+        ub();pf();populateLoginUsers();
+      }
     }
     // Use POST to avoid URL length limits (GAS GET limit ~2KB, POST handles large data)
     const payload=JSON.stringify(db);
@@ -2090,7 +2106,7 @@ function mergeDB(local,remote){
   function mergeArr(loc,rem){const map=new Map();loc.forEach(x=>map.set(x.id,x));rem.forEach(x=>map.set(x.id,x));return Array.from(map.values());}
   return{...remote,calls:mergeArr(local.calls,remote.calls||[]),leads:mergeArr(local.leads,remote.leads||[]),meetings:mergeArr(local.meetings,remote.meetings||[]),agents:mergeArr(local.agents,remote.agents||[]),nA:Math.max(local.nA||0,remote.nA||0),nL:Math.max(local.nL||0,remote.nL||0),nC:Math.max(local.nC||0,remote.nC||0),nM:Math.max(local.nM||0,remote.nM||0)};
 }
-setInterval(()=>{if(currentUser&&cfg.gsUrl)syncNow();},180000);
+setInterval(()=>{if(currentUser&&cfg.gsUrl)syncNow();},60000); // sync every 60s (was 180s) for faster user/data propagation
 
 // ── GAS CODE ──────────────────────────────────────────────────
 const GAS_CODE=`// DoveCRM — Google Apps Script by Dovetail Solutions
