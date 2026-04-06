@@ -322,6 +322,15 @@ tr:hover td{background:#faf9f5;}
     </div>
     <button class="login-btn" onclick="doLogin()">Sign In →</button>
     <div class="login-err" id="login-err"></div>
+    <!-- GS URL setup — shown if sheet not configured on this device -->
+    <div id="gs-setup-box" style="display:none;margin-top:14px">
+      <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">🔗 Connect Google Sheet (required for sync)</div>
+      <div style="display:flex;gap:6px">
+        <input id="gs-setup-url" class="login-input" style="margin-bottom:0;flex:1;font-size:12px" placeholder="https://script.google.com/macros/s/…/exec">
+        <button class="login-btn" style="width:auto;padding:10px 14px;margin-top:0;font-size:12px" onclick="saveGSFromLogin()">Connect</button>
+      </div>
+      <div id="gs-setup-msg" style="font-size:11px;color:rgba(255,255,255,.4);margin-top:5px"></div>
+    </div>
     
       <div style="margin-top:8px;color:rgba(255,255,255,.35);font-size:11px">DoveCRM · Taking you higher, Together!</div>
     </div>
@@ -749,6 +758,41 @@ function populateLoginUsers(){
   if(!sel)return;
   sel.innerHTML='<option value="">Select your name…</option>'+
     db.agents.filter(a=>a.status==='Active').map(a=>`<option value="${a.id}">${a.name} (${roleLbl(a.role)})</option>`).join('');
+  // Show GS URL setup box if not configured
+  const gsBox=document.getElementById('gs-setup-box');
+  if(gsBox){
+    if(!cfg.gsUrl){
+      gsBox.style.display='block';
+    } else {
+      gsBox.style.display='none';
+    }
+  }
+}
+function saveGSFromLogin(){
+  const url = document.getElementById('gs-setup-url').value.trim();
+  const msg = document.getElementById('gs-setup-msg');
+  if(!url){msg.textContent='Please paste your Apps Script URL.';return;}
+  if(!url.includes('script.google.com')){msg.textContent='Invalid URL — must be a Google Apps Script URL.';return;}
+  cfg.gsUrl = url;
+  saveCfg();
+  msg.textContent='✓ Connecting…';
+  // Now pull data from sheet
+  fetch(url+'?action=read')
+    .then(r=>r.text())
+    .then(txt=>{
+      if(txt&&txt!=='null'){
+        const remoteDB=JSON.parse(txt);
+        if(remoteDB&&remoteDB.agents){
+          db=mergeDB(db,remoteDB);
+          saveDB();
+          populateLoginUsers();
+          document.getElementById('gs-setup-box').style.display='none';
+          msg.textContent='✓ Connected! All users loaded.';
+          toast('✓ Sheet connected! You can now log in.','ok');
+        }
+      }
+    })
+    .catch(()=>{msg.style.color='#fca5a5';msg.textContent='Could not connect. Check the URL.';});
 }
 function togglePIN(){
   const pin=document.getElementById('login-pin');
