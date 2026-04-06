@@ -1470,7 +1470,7 @@ function rMeet(){
     <td>${bdg(m.mode||'—','bgr')}</td>
     <td style="font-size:12px;color:var(--text2);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${m.location||''}">${m.location||'—'}</td>
     <td>
-      ${isAdmin()?
+      ${(isAdmin()||(currentUser.role==='telecaller'&&m.agentId===currentUser.id))?
         `<select class="fs" style="padding:3px 6px;font-size:12px;width:120px" onchange="ums(${m.id},this.value)">
           ${['Scheduled','Completed','Cancelled','No Show','Rescheduled'].map(s=>`<option ${m.status===s?'selected':''}>${s}</option>`).join('')}
         </select>`:
