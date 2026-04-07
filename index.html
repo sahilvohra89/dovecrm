@@ -2641,16 +2641,17 @@ function openLAM(leadId){
   document.getElementById('lam-name').textContent=l.name;
   document.getElementById('lam-company').textContent=(l.company||'')+(l.phone?' · '+l.phone:'');
   const isInactive=l.status==='Not Interested'||l.status==='Closed'||l.status==='Won';
-  document.getElementById('lam-body').innerHTML=`
-    <div style="padding:4px 0">
-      ${!isInactive&&canLogCall?`<div class="lam-item" onclick="closeLAM();quickLogCall(${l.id})">⚡ Quick Log Call</div>`:''}
-      ${isInactive?`<div class="lam-item lam-amber" onclick="closeLAM();reactivateLead(${l.id})">🔄 Reactivate Lead</div>`:''}
-      <div class="lam-item lam-purple" onclick="closeLAM();openHistory(${l.id})">📋 History & Notes</div>
-      ${!isInactive?`<div class="lam-item lam-green" onclick="closeLAM();openLeadSalesWA(${l.id})">📲 Send to Sales Team</div>`:''}
-      <div class="lam-item" onclick="closeLAM();copyLeadDetails(${l.id})">⎘ Copy Details</div>
-      <div class="lam-item" onclick="closeLAM();oeL(${l.id})">✏️ Edit Lead</div>
-      ${isAdmin()?`<div class="lam-item lam-red" onclick="closeLAM();dL(${l.id})">🗑 Delete Lead</div>`:''}
-    </div>`;
+  const lid=l.id;
+  document.getElementById('lam-body').innerHTML=
+    '<div style="padding:4px 0">'+
+    (!isInactive&&canLogCall?'<div class="lam-item" onclick="closeLAM();quickLogCall('+lid+')">⚡ Quick Log Call</div>':'')+
+    (isInactive?'<div class="lam-item lam-amber" onclick="closeLAM();reactivateLead('+lid+')">🔄 Reactivate Lead</div>':'')+
+    '<div class="lam-item lam-purple" onclick="closeLAM();openHistory('+lid+')">📋 History & Notes</div>'+
+    (!isInactive?'<div class="lam-item lam-green" onclick="closeLAM();openLeadSalesWA('+lid+')">📲 Send to Sales Team</div>':'')+
+    '<div class="lam-item" onclick="closeLAM();copyLeadDetails('+lid+')">⎘ Copy Details</div>'+
+    '<div class="lam-item" onclick="closeLAM();oeL('+lid+')">✏️ Edit Lead</div>'+
+    (isAdmin()?'<div class="lam-item lam-red" onclick="closeLAM();dL('+lid+')">🗑 Delete Lead</div>':'')+
+    '</div>';
   document.getElementById('lead-action-mov').classList.add('open');
 }
 function closeLAM(){
@@ -2945,7 +2946,7 @@ function renderTeamLists(){
   ['sales','service'].forEach(type=>{
     const list=document.getElementById(type+'-team-list');
     if(!list)return;
-    const team=cfg[type+'Team']||[];
+    const team=db[type+'Team']||[];
     if(!team.length){
       list.innerHTML='<div style="color:var(--text3);font-size:12.5px;padding:6px 0">No members added yet.</div>';
       return;
@@ -2969,8 +2970,8 @@ function addTeamMember(type){
   const phone=(phoneEl?.value||'').trim();
   if(!name){toast('Enter a name','err');return;}
   if(!phone||!/^\d{10}$/.test(phone)){toast('Enter valid 10-digit WhatsApp number','err');return;}
-  if(!cfg[type+'Team'])cfg[type+'Team']=[];
-  if(cfg[type+'Team'].some(m=>m.phone===phone)){toast('This number already exists','err');return;}
+  if(!db[type+'Team'])db[type+'Team']=[];
+  if(db[type+'Team'].some(m=>m.phone===phone)){toast('This number already exists','err');return;}
   db[type+'Team'].push({name,phone});
   saveDB();syncNow();
   if(nameEl)nameEl.value='';
@@ -2980,8 +2981,8 @@ function addTeamMember(type){
 }
 
 function removeTeamMember(type,idx){
-  if(!cfg[type+'Team'])return;
-  const name=cfg[type+'Team'][idx]?.name||'Member';
+  if(!db[type+'Team'])return;
+  const name=db[type+'Team'][idx]?.name||'Member';
   db[type+'Team'].splice(idx,1);
   saveDB();syncNow();
   renderTeamLists();
