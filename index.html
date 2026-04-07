@@ -259,6 +259,18 @@ tr:hover td{background:#faf9f5;}
 .tag-pill button{background:none;border:none;cursor:pointer;padding:0;line-height:1;font-size:12px;color:inherit;opacity:.7;}
 .tag-pill button:hover{opacity:1;}
 
+/* ── WHATSAPP TEMPLATES ── */
+.wa-tmpl-modal{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9000;display:flex;align-items:center;justify-content:center;}
+.wa-tmpl-box{background:var(--surface);border-radius:var(--r-lg);width:480px;max-width:95vw;max-height:85vh;overflow-y:auto;box-shadow:var(--shadow-md);}
+.wa-tmpl-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.wa-tmpl-list{padding:14px;}
+.wa-tmpl-item{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:10px;cursor:pointer;transition:all .15s;}
+.wa-tmpl-item:hover{border-color:#25d366;background:#f0fdf4;}
+.wa-tmpl-item:hover .wa-tmpl-send{opacity:1;}
+.wa-tmpl-name{font-weight:700;font-size:13px;color:var(--text);margin-bottom:4px;display:flex;align-items:center;gap:6px;}
+.wa-tmpl-preview{font-size:12px;color:var(--text2);line-height:1.5;white-space:pre-wrap;}
+.wa-tmpl-send{opacity:0;transition:opacity .15s;font-size:11px;font-weight:700;color:#15803d;margin-top:6px;}
+
 /* ── LEAD HISTORY & NOTES ── */
 #history-mov .modal{overflow:hidden;}
 .note-card{background:var(--bg);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:8px;border-left:3px solid var(--accent);}
@@ -425,6 +437,20 @@ tr:hover td{background:#faf9f5;}
     <button class="btn btn-sm btn-g" onclick="dlXL('calls')" style="background:#217346;color:#fff;border-color:#217346">📊 Calls XL</button>
     <button class="btn btn-sm btn-g" onclick="dlXL('report')" style="background:#217346;color:#fff;border-color:#217346">📊 Report XL</button>
     <button class="btn btn-sm" onclick="dlJ()">Backup JSON</button>
+  </div>
+
+  <!-- WHATSAPP TEMPLATES MODAL -->
+  <div id="wa-tmpl-modal" style="display:none" class="wa-tmpl-modal" onclick="if(event.target===this)closeWATemplates()">
+    <div class="wa-tmpl-box">
+      <div class="wa-tmpl-header">
+        <div>
+          <div style="font-weight:700;font-size:15px">💬 WhatsApp Templates</div>
+          <div id="wa-tmpl-lead-name" style="font-size:12px;color:var(--text3);margin-top:2px"></div>
+        </div>
+        <button onclick="closeWATemplates()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3)">×</button>
+      </div>
+      <div class="wa-tmpl-list" id="wa-tmpl-list"></div>
+    </div>
   </div>
 
   <!-- LEAD HISTORY & NOTES MODAL -->
@@ -1267,7 +1293,7 @@ function rMyDash(){
           <div style="font-size:11.5px;color:var(--text3)">${c.outcome} · ${c.notes||'No notes'}</div>
         </div>
         ${lead?.phone?`<a href="tel:${lead.phone}" style="font-size:18px;text-decoration:none" title="Call ${c.leadName}" onclick="event.stopPropagation()">📞</a>`:''}
-        ${lead?.phone?`<a class="wa-btn" href="https://wa.me/91${(lead.phone||"").replace(/\D/g,"")}" target="_blank" onclick="event.stopPropagation()">WhatsApp</a>`:''}
+        ${lead?.phone?`<button class="wa-btn" onclick="event.stopPropagation();openWATemplates(${c.leadId})" style="border:none;cursor:pointer">💬 WhatsApp</button>`:''}
         <span style="font-size:11px;color:var(--accent);font-weight:600;cursor:pointer" onclick="navigateTo('leads');setTimeout(()=>quickLogCall(${c.leadId}),600)">⚡ Log →</span>
       </div>`;
     }).join('');
@@ -1295,7 +1321,7 @@ function rMyDash(){
       <td style="font-size:12.5px;color:var(--text2)">${l.company||'—'}</td>
       <td><div style="display:flex;align-items:center;gap:5px">
         ${l.phone?`<a href="tel:${l.phone}" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent);text-decoration:none">${l.phone}</a>`:'—'}
-        ${l.phone?`<a class="wa-btn" href="https://wa.me/91${(l.phone||"").replace(/\D/g,"")}" target="_blank" style="font-size:10px;padding:2px 5px">WA</a>`:''}
+        ${l.phone?`<button class="wa-btn" onclick="openWATemplates(${l.id})" style="border:none;cursor:pointer;font-size:10px;padding:2px 5px">💬 WA</button>`:''}
       </div></td>
       <td>${prioBdg(l.priority)}</td>
       <td>${bdg(l.status)}</td>
@@ -1543,7 +1569,7 @@ function rLeads(list){
       <td style="color:var(--text2)">${l.company||'—'}</td>
       <td><div style="display:flex;align-items:center;gap:6px">
         <span style="font-family:'JetBrains Mono',monospace;font-size:12.5px">${l.phone||'—'}</span>
-        ${l.phone?`<a class="wa-btn" href="https://wa.me/91${(l.phone||"").replace(/\D/g,"")}" target="_blank" style="font-size:10.5px;padding:2px 6px">WA</a>`:''}
+        ${l.phone?`<button class="wa-btn" onclick="openWATemplates(${l.id})" style="border:none;cursor:pointer;font-size:10.5px;padding:2px 6px">💬 WA</button>`:''}
       </div></td>
       <td>${prioBdg(l.priority)}</td>
       <td>${bdg(l.status)}</td>
@@ -2442,6 +2468,86 @@ function dlXL(type){
   toast('✓ Excel file downloaded!','ok');
 }
 function hs(q){if(cv==='calls')rCalls();if(cv==='meetings')rMeet();if(cv==='leads')rLeads(db.leads);}
+
+// ── WHATSAPP MESSAGE TEMPLATES ────────────────────────────────
+const WA_TEMPLATES = [
+  {
+    name: '👋 Introduction',
+    icon: '👋',
+    text: (l) => `Hello ${l.name}! I'm calling from Dovetail Solutions. I'd like to discuss how we can help ${l.company||'your business'}. Would you have a few minutes to connect?`
+  },
+  {
+    name: '📞 Follow-up After Call',
+    icon: '📞',
+    text: (l) => `Hi ${l.name}, it was great speaking with you! As discussed, I'm sharing our details. Please feel free to reach out anytime. Looking forward to connecting further!`
+  },
+  {
+    name: '📅 Meeting Confirmation',
+    icon: '📅',
+    text: (l) => `Hi ${l.name}, this is to confirm our upcoming meeting. Please let me know if you need to reschedule. Looking forward to our discussion!`
+  },
+  {
+    name: '🔔 Meeting Reminder',
+    icon: '🔔',
+    text: (l) => `Hi ${l.name}, just a friendly reminder about our meeting today. Please let me know if there are any changes. See you soon!`
+  },
+  {
+    name: '💼 Proposal Follow-up',
+    icon: '💼',
+    text: (l) => `Hi ${l.name}, I wanted to follow up on the proposal I shared. Do you have any questions or need any clarification? I'd love to help!`
+  },
+  {
+    name: '🎯 Interested Lead',
+    icon: '🎯',
+    text: (l) => `Hi ${l.name}, thank you for your interest in Dovetail Solutions! I'd love to understand your requirements better and show you how we can add value to ${l.company||'your business'}.`
+  },
+  {
+    name: '⏰ Callback Request',
+    icon: '⏰',
+    text: (l) => `Hi ${l.name}, I tried reaching you but couldn't connect. Could you please let me know a convenient time to call you back? Looking forward to speaking with you!`
+  },
+  {
+    name: '✅ Deal Closed',
+    icon: '✅',
+    text: (l) => `Hi ${l.name}, congratulations and welcome to Dovetail Solutions! We're excited to have you on board. Our team will be in touch shortly to get you started. Thank you for choosing us!`
+  },
+  {
+    name: '🙏 Thank You',
+    icon: '🙏',
+    text: (l) => `Hi ${l.name}, thank you for your time today! It was a pleasure speaking with you. Please don't hesitate to reach out if you have any questions. Have a great day!`
+  },
+  {
+    name: '📋 Service Follow-up',
+    icon: '📋',
+    text: (l) => `Hi ${l.name}, I'm following up on the service request. I wanted to ensure everything has been resolved to your satisfaction. Please let us know if you need any further assistance!`
+  },
+];
+
+let _waTmplLeadId = null;
+
+function openWATemplates(leadId) {
+  const lead = db.leads.find(l => l.id === leadId);
+  if (!lead) { toast('Lead not found', 'err'); return; }
+  _waTmplLeadId = leadId;
+  document.getElementById('wa-tmpl-lead-name').textContent = lead.name + (lead.company ? ' · ' + lead.company : '') + (lead.phone ? ' · ' + lead.phone : '');
+  const list = document.getElementById('wa-tmpl-list');
+  const phone = (lead.phone || '').replace(/\D/g, '');
+  list.innerHTML = WA_TEMPLATES.map((t, i) => {
+    const msg = t.text(lead);
+    const waUrl = 'https://wa.me/91' + phone + '?text=' + encodeURIComponent(msg);
+    return `<a href="${waUrl}" target="_blank" class="wa-tmpl-item" style="display:block;text-decoration:none" onclick="closeWATemplates()">
+      <div class="wa-tmpl-name">${t.icon} ${t.name}</div>
+      <div class="wa-tmpl-preview">${msg.length > 120 ? msg.substring(0, 120) + '…' : msg}</div>
+      <div class="wa-tmpl-send">Tap to open in WhatsApp →</div>
+    </a>`;
+  }).join('');
+  document.getElementById('wa-tmpl-modal').style.display = 'flex';
+}
+
+function closeWATemplates() {
+  document.getElementById('wa-tmpl-modal').style.display = 'none';
+  _waTmplLeadId = null;
+}
 
 // ── LEAD HISTORY & INTERNAL NOTES ──────────────────────────────
 let _historyLeadId=null;
@@ -3440,7 +3546,7 @@ rLeads = function(list) {
       </div></div></td>
       <td><div style="display:flex;align-items:center;gap:5px">
         ${l.phone?`<a href="tel:${l.phone}" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent);text-decoration:none">${l.phone}</a>`:'—'}
-        ${l.phone?`<a class="wa-btn" href="https://wa.me/91${(l.phone||"").replace(/\D/g,"")}" target="_blank" style="font-size:10px;padding:2px 5px">WA</a>`:''}
+        ${l.phone?`<button class="wa-btn" onclick="openWATemplates(${l.id})" style="border:none;cursor:pointer;font-size:10px;padding:2px 5px">💬 WA</button>`:''}
       </div></td>
       <td>${prioBdg(l.priority)}</td>
       <td>${bdg(l.status)}</td>
