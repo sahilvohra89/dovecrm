@@ -1697,7 +1697,7 @@ function rLeads(list){
           ?`<button class="btn btn-sm btn-p" style="padding:2px 7px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Log</button>`:
           (l.status==='Not Interested'||l.status==='Closed'||l.status==='Won')
           ?`<button class="btn btn-sm" style="padding:2px 7px;font-size:11px;background:var(--amber-bg);color:var(--amber);border-color:var(--amber-b)" onclick="reactivateLead(${l.id})">🔄</button>`:''}
-        <button class="btn btn-sm" style="padding:2px 7px;font-size:13px" onclick="openLAM(${l.id})">⋯</button>
+        <button class="btn btn-sm" style="padding:2px 7px;font-size:11px;letter-spacing:1px" onclick="openLAM(${l.id})">• • •</button>
       </td>
     </tr>
     ${qlHtml?`<tr><td colspan="10" style="padding:0 14px 6px;background:var(--accent-bg)">${qlHtml}</td></tr>`:''}`;
@@ -2770,7 +2770,7 @@ function rLeadsFiltered(list){
           ?`<button class="btn btn-sm btn-p" style="padding:2px 7px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Log</button>`:
           (l.status==='Not Interested'||l.status==='Closed'||l.status==='Won')
           ?`<button class="btn btn-sm" style="padding:2px 7px;font-size:11px;background:var(--amber-bg);color:var(--amber);border-color:var(--amber-b)" onclick="reactivateLead(${l.id})">🔄</button>`:''}
-        <button class="btn btn-sm" style="padding:2px 7px;font-size:13px" onclick="openLAM(${l.id})">⋯</button>
+        <button class="btn btn-sm" style="padding:2px 7px;font-size:11px;letter-spacing:1px" onclick="openLAM(${l.id})">• • •</button>
       </td>
     </tr>`;
   }).join('');
