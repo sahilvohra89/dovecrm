@@ -260,6 +260,9 @@ tr:hover td{background:#faf9f5;}
 .tag-pill button{background:none;border:none;cursor:pointer;padding:0;line-height:1;font-size:12px;color:inherit;opacity:.7;}
 .tag-pill button:hover{opacity:1;}
 
+/* ── LEAD ACTION MENU ── */
+.lead-menu-item{padding:8px 14px;font-size:13px;cursor:pointer;color:var(--text);transition:background .1s;white-space:nowrap;}
+.lead-menu-item:hover{background:var(--bg);}
 /* ── WHATSAPP TEMPLATES ── */
 .wa-tmpl-modal{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9000;display:flex;align-items:center;justify-content:center;}
 .wa-tmpl-box{background:var(--surface);border-radius:var(--r-lg);width:480px;max-width:95vw;max-height:85vh;overflow-y:auto;box-shadow:var(--shadow-md);}
@@ -595,7 +598,7 @@ tr:hover td{background:#faf9f5;}
         <select class="fi" id="lf-status" style="width:160px" onchange="rLeads(db.leads)">
           <option value="">All Status</option>
           <option>New</option><option>Contacted</option><option>Interested</option>
-          <option>Meeting Done</option><option>Not Interested</option><option>Closed</option>
+          <option>Meeting Done</option><option>Won</option><option>Not Interested</option><option>Closed</option>
         </select>
         <select class="fi" id="lf-prio" style="width:140px" onchange="rLeads(db.leads)">
           <option value="">All Priority</option><option>Hot</option><option>Warm</option><option>Cold</option>
@@ -614,7 +617,7 @@ tr:hover td{background:#faf9f5;}
       <div class="card"><div class="table-wrap"><table><thead><tr>
         <th style="width:32px"><input type="checkbox" id="select-all-leads" onchange="toggleAllLeads(this.checked)" title="Select all"></th>
         <th>Name</th><th>Phone</th><th>Priority</th><th>Status</th>
-        <th>Assigned To</th><th>Source</th><th>Calls</th><th>Last Called</th><th>Action</th>
+        <th>Assigned To</th><th>Source</th><th>Attempts</th><th>Last Called</th><th>Action</th>
       </tr></thead><tbody id="ltb"></tbody></table></div></div>
     </div>
 
@@ -1123,7 +1126,7 @@ function an(id){const a=db.agents.find(x=>x.id==id);return a?a.name:'—';}
 function avCell(n){if(!n||n==='—')return`<div class="av" style="background:var(--surface2);color:var(--text3)">?</div>`;const p=avc2(n);return`<div class="av" style="background:${p.bg};color:${p.c}">${ini(n)}</div>`;}
 const obm={'Meeting Fixed':'bb','Interested':'bg','Callback':'ba','Not Answered':'bgr','Not Interested':'br','Follow-up':'bp',
   'Issue Resolved':'bg','Escalated':'br','Pending Callback':'ba','Parts Ordered':'bt','Not Reachable':'bgr'};
-const sbm={'New':'bgr','Contacted':'bb','Interested':'bg','Meeting Done':'bt','Meeting Fixed':'bt','Not Interested':'br','Closed':'bp','Scheduled':'bb','Completed':'bg','Cancelled':'br','No Show':'ba','Rescheduled':'bo','Active':'bg','Inactive':'bgr','Converted':'bg','Lost':'br','Follow-up Needed':'ba'};
+const sbm={'New':'bgr','Contacted':'bb','Interested':'bg','Meeting Done':'bt','Meeting Fixed':'bt','Not Interested':'br','Closed':'bp','Won':'bgold','Scheduled':'bb','Completed':'bg','Cancelled':'br','No Show':'ba','Rescheduled':'bo','Active':'bg','Inactive':'bgr','Converted':'bg','Lost':'br','Follow-up Needed':'ba'};
 function bdg(t,c){return`<span class="badge ${c||sbm[t]||'bgr'}">${t||'—'}</span>`;}
 function prioBdg(p){return p?`<span class="prio-${(p||'').toLowerCase()}">${p==='Hot'?'🔥':p==='Warm'?'🟡':'❄️'} ${p}</span>`:'—';}
 const oc={'Meeting Fixed':'#2563eb','Interested':'#16a34a','Callback':'#d97706','Not Answered':'#9896a0','Not Interested':'#dc2626','Follow-up':'#7c3aed',
@@ -1340,7 +1343,7 @@ function rMyDash(){
 
   // Follow-up queue
   // Deduplicate: keep only the LATEST follow-up per lead (most recent followupDate)
-  const _closedSt=new Set(['Closed','Not Interested']);
+  const _closedSt=new Set(['Closed','Won','Not Interested']);
   const fuRaw=db.calls.filter(c=>{
     if(c.agentId!==uid||!c.followupDate)return false;
     const lead=db.leads.find(l=>l.id===c.leadId);
@@ -1391,7 +1394,7 @@ function rMyDash(){
   document.getElementById('my-outcomes').innerHTML=barColored(outToShow.map(o=>({n:o,v:weekCalls.filter(c=>c.outcome===o).length,c:oc[o]})));
 
   // My Assigned Leads Quick Panel
-  const myLeads=db.leads.filter(l=>l.assignedTo===uid&&l.status!=='Closed'&&l.status!=='Not Interested'&&l.status!=='Meeting Done'&&l.status!=='Meeting Fixed').sort((a,b)=>{const p={'Hot':0,'Warm':1,'Cold':2};return(p[a.priority]??3)-(p[b.priority]??3);});
+  const myLeads=db.leads.filter(l=>l.assignedTo===uid&&l.status!=='Closed'&&l.status!=='Won'&&l.status!=='Not Interested'&&l.status!=='Meeting Done'&&l.status!=='Meeting Fixed').sort((a,b)=>{const p={'Hot':0,'Warm':1,'Cold':2};return(p[a.priority]??3)-(p[b.priority]??3);});
   document.getElementById('my-leads-count').textContent=myLeads.length+' active';
   const mlEl=document.getElementById('my-leads-quick');
   if(!myLeads.length){
@@ -1495,7 +1498,7 @@ function updateMeetStatus(mid){
   // Update lead status based on meeting outcome
   const lead4=db.leads.find(l=>l.id===m.leadId);
   if(lead4){
-    if(outcome==='Converted') lead4.status='Closed';
+    if(outcome==='Converted') lead4.status='Won';
     else if(outcome==='Lost') lead4.status='Not Interested';
     else if(outcome==='Follow-up Needed') lead4.status='Interested'; // back to active pipeline
     else if(outcome==='Demo Done') lead4.status='Interested';
@@ -1648,7 +1651,7 @@ function rLeads(list){
     // Stale lead detection - not called in 3+ days
     const today3=new Date().toISOString().split('T')[0];
     const daysSinceCall=l.lastCalled?Math.floor((new Date(today3)-new Date(l.lastCalled))/(1000*60*60*24)):999;
-    const isStale=daysSinceCall>=3&&l.status!=='Closed'&&l.status!=='Not Interested'&&l.status!=='Meeting Done'&&l.status!=='Meeting Fixed';
+    const isStale=daysSinceCall>=3&&l.status!=='Closed'&&l.status!=='Won'&&l.status!=='Not Interested'&&l.status!=='Meeting Done'&&l.status!=='Meeting Fixed';
     const staleBadge=isStale?`<span style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:4px;font-size:10px;font-weight:700;padding:1px 5px;margin-left:4px" title="Not called in ${daysSinceCall===999?'never':daysSinceCall+' days'}">🥶 ${daysSinceCall===999?'Never called':daysSinceCall+'d stale'}</span>`:'';
     return`<tr style="${isStale?'background:rgba(220,38,38,.03)':''}">
       <td style="width:32px;text-align:center"><input type="checkbox" class="lead-cb" value="${l.id}" onchange="updateBulkBar()"></td>
@@ -1666,14 +1669,19 @@ function rLeads(list){
       <td>${bdg(l.source||'—','bgr')}</td>
       <td>${warnAttempts}</td>
       <td style="font-size:12px;color:var(--text2)">${l.lastCalled?fd(l.lastCalled):'—'}</td>
-      <td style="white-space:nowrap">
-        ${(l.status==='Not Interested'||l.status==='Closed')?
-          `<button class="btn btn-sm" style="padding:3px 9px;font-size:11px;background:var(--amber-bg);color:var(--amber);border-color:var(--amber-b)" onclick="reactivateLead(${l.id})" title="Reactivate this lead">🔄 Reactivate</button>`
-          :(canLogCall?`<button class="btn btn-sm btn-p" style="padding:3px 9px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Log</button>`:'')}
-        <button class="btn btn-sm" onclick="openHistory(${l.id})" title="Call History & Notes" style="padding:3px 9px;font-size:11px;background:var(--purple-bg);color:var(--purple);border-color:var(--purple-b)">📋 History</button>
-        ${l.status!=='Closed'&&l.status!=='Not Interested'?`<button class="ab" onclick="openLeadSalesWA(${l.id})" title="${l.status==='Meeting Done'||l.status==='Meeting Fixed'?'Send meeting details':'Send lead details'}" style="background:#dcfce7;color:#15803d">📲</button>`:''}
-        <button class="ab" onclick="oeL(${l.id})" title="Edit">✏️</button>
-        ${isAdmin()?`<button class="ab d" onclick="dL(${l.id})" title="Delete">🗑</button>`:''}
+      <td style="white-space:nowrap;position:relative">
+        ${canLogCall&&l.status!=='Not Interested'&&l.status!=='Closed'&&l.status!=='Won'?`<button class="btn btn-sm btn-p" style="padding:3px 9px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Log</button>`:''}
+        ${(l.status==='Not Interested'||l.status==='Closed'||l.status==='Won')?`<button class="btn btn-sm" style="padding:3px 9px;font-size:11px;background:var(--amber-bg);color:var(--amber);border-color:var(--amber-b)" onclick="reactivateLead(${l.id})">🔄</button>`:''}
+        <div class="lead-action-wrap" style="display:inline-block;position:relative">
+          <button class="btn btn-sm" onclick="toggleLeadMenu(event,${l.id})" style="padding:3px 9px;font-size:11px">⋯</button>
+          <div id="lead-menu-${l.id}" class="lead-action-menu" style="display:none;position:absolute;right:0;top:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-md);z-index:100;min-width:180px;padding:4px 0">
+            <div onclick="openHistory(${l.id});closeLeadMenus()" class="lead-menu-item">📋 History & Notes</div>
+            <div onclick="openLeadSalesWA(${l.id});closeLeadMenus()" class="lead-menu-item" style="color:#15803d">📲 Send to Sales Team</div>
+            <div onclick="copyLeadDetails(${l.id});closeLeadMenus()" class="lead-menu-item">⎘ Copy Details</div>
+            <div onclick="oeL(${l.id});closeLeadMenus()" class="lead-menu-item">✏️ Edit Lead</div>
+            ${isAdmin()?`<div onclick="dL(${l.id});closeLeadMenus()" class="lead-menu-item" style="color:var(--red)">🗑 Delete</div>`:''}
+          </div>
+        </div>
       </td>
     </tr>
     ${qlHtml?`<tr><td colspan="11" style="padding:0 14px 6px;background:var(--accent-bg)">${qlHtml}</td></tr>`:''}`;
@@ -2141,7 +2149,7 @@ function gF(type,d){
     </div>
     <div class="fr">
       <div class="fg"><label class="fl">Priority</label><select class="fs" id="flpr">${['Hot','Warm','Cold'].map(p=>`<option ${d.priority===p?'selected':''}>${p}</option>`).join('')}</select></div>
-      <div class="fg"><label class="fl">Status</label><select class="fs" id="flst">${['New','Contacted','Interested','Meeting Done','Not Interested','Closed'].map(s=>`<option ${d.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="fg"><label class="fl">Status</label><select class="fs" id="flst">${['New','Contacted','Interested','Meeting Done','Won','Not Interested','Closed'].map(s=>`<option ${d.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
     </div>
     <div class="fr">
       <div class="fg"><label class="fl">Assigned To</label><select class="fs" id="flas"><option value="">Unassigned</option>${aOpts(d.assignedTo,'telecaller')}</select></div>
@@ -2609,6 +2617,19 @@ function dlXL(type){
 }
 function hs(q){if(cv==='calls')rCalls();if(cv==='meetings')rMeet();if(cv==='leads')rLeads(db.leads);}
 
+// ── LEAD ACTION DROPDOWN MENU ─────────────────────────────────
+function toggleLeadMenu(e,leadId){
+  e.stopPropagation();
+  closeLeadMenus();
+  const menu=document.getElementById('lead-menu-'+leadId);
+  if(menu)menu.style.display=menu.style.display==='none'?'block':'none';
+}
+function closeLeadMenus(){
+  document.querySelectorAll('.lead-action-menu').forEach(m=>m.style.display='none');
+}
+// Close menus when clicking elsewhere
+document.addEventListener('click',closeLeadMenus);
+
 // ── REACTIVATE LEAD ───────────────────────────────────────────
 function reactivateLead(leadId){
   const lead=db.leads.find(l=>l.id===leadId);
@@ -2649,8 +2670,9 @@ function filterCallbacksToday(){
   document.getElementById('btn-callbacks-today').style.color='#fff';
   document.getElementById('btn-not-answered').style.background='';
   document.getElementById('btn-not-answered').style.color='';
-  // Filter leads table
-  const filtered=db.leads.filter(l=>callbackLids.has(l.id));
+  // Filter leads - exclude Won/Closed/Not Interested
+  const _excludeSt=new Set(['Won','Closed','Not Interested']);
+  const filtered=db.leads.filter(l=>callbackLids.has(l.id)&&!_excludeSt.has(l.status));
   if(!filtered.length){toast('No callbacks due today!','ok');clearLeadFilters();return;}
   const tb=document.getElementById('ltb');
   // Temporarily show only matching leads
@@ -2668,7 +2690,7 @@ function filterNotAnswered(){
   // Leads where last call outcome was Not Answered within last 3 days
   const naLids=new Set();
   db.leads.forEach(l=>{
-    if(l.status==='Closed'||l.status==='Not Interested')return;
+    if(l.status==='Closed'||l.status==='Won'||l.status==='Not Interested')return;
     const lastCall=db.calls.filter(c=>c.leadId===l.id&&relevantTCIds2.includes(c.agentId)).sort((a,b)=>b.datetime.localeCompare(a.datetime))[0];
     if(lastCall&&lastCall.outcome==='Not Answered'&&lastCall.datetime.split('T')[0]>=cutoff){
       naLids.add(l.id);
@@ -2688,14 +2710,14 @@ function filterNotAnswered(){
 function rLeadsFiltered(list){
   // Show filtered leads without changing dropdowns
   const tb=document.getElementById('ltb');
-  if(!list.length){tb.innerHTML='<tr><td colspan="12"><div class="empty"><p>No leads found.</p></div></td></tr>';return;}
+  if(!list.length){tb.innerHTML='<tr><td colspan="10"><div class="empty"><p>No leads found.</p></div></td></tr>';return;}
   const today=new Date().toISOString().split('T')[0];
   tb.innerHTML=list.map(l=>{
     const a=an(l.assignedTo);
     const warnAttempts=l.attempts>=4?`<span style="color:var(--red);font-weight:700">⚠️ ${l.attempts}</span>`:`<span style="font-family:'JetBrains Mono',monospace">${l.attempts||0}</span>`;
     const canLogCall=(currentUser.role==='telecaller'&&l.assignedTo===currentUser.id)||isAdmin();
     const daysSinceCall=l.lastCalled?Math.floor((new Date(today)-new Date(l.lastCalled))/(1000*60*60*24)):999;
-    const isStale=daysSinceCall>=3&&l.status!=='Closed'&&l.status!=='Not Interested'&&l.status!=='Meeting Done'&&l.status!=='Meeting Fixed';
+    const isStale=daysSinceCall>=3&&l.status!=='Closed'&&l.status!=='Won'&&l.status!=='Not Interested'&&l.status!=='Meeting Done'&&l.status!=='Meeting Fixed';
     const staleBadge=isStale?`<span style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:4px;font-size:10px;font-weight:700;padding:1px 5px;margin-left:4px">🥶 ${daysSinceCall===999?'Never':daysSinceCall+'d'}</span>`:'';
     return`<tr style="${isStale?'background:rgba(220,38,38,.03)':''}">
       <td style="width:32px;text-align:center"><input type="checkbox" class="lead-cb" value="${l.id}" onchange="updateBulkBar()"></td>
@@ -2716,10 +2738,18 @@ function rLeadsFiltered(list){
       <td style="white-space:nowrap">
         ${canLogCall?`<button class="btn btn-sm btn-p" style="padding:3px 9px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Log</button>`:''}
         <button class="ab" onclick="openHistory(${l.id})" title="Call History & Notes">📋</button>
-        ${(db.salesTeam&&db.salesTeam.length)?`<button class="ab" onclick="openLeadSalesWA(${l.id})" title="Send to Sales Team" style="background:#dcfce7;color:#15803d">📲</button>`:''}
-        <button class="ab" onclick="copyLeadDetails(${l.id})" title="Copy details">⎘</button>
-        <button class="ab" onclick="oeL(${l.id})" title="Edit">✏️</button>
-        ${isAdmin()?`<button class="ab d" onclick="dL(${l.id})" title="Delete">🗑</button>`:''}
+        ${canLogCall&&l.status!=='Not Interested'&&l.status!=='Closed'&&l.status!=='Won'?`<button class="btn btn-sm btn-p" style="padding:3px 9px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Log</button>`:''}
+        ${(l.status==='Not Interested'||l.status==='Closed'||l.status==='Won')?`<button class="btn btn-sm" style="padding:3px 9px;font-size:11px;background:var(--amber-bg);color:var(--amber);border-color:var(--amber-b)" onclick="reactivateLead(${l.id})">🔄</button>`:''}
+        <div class="lead-action-wrap" style="display:inline-block;position:relative">
+          <button class="btn btn-sm" onclick="toggleLeadMenu(event,${l.id})" style="padding:3px 9px;font-size:11px">⋯</button>
+          <div id="lead-menu-${l.id}" class="lead-action-menu" style="display:none;position:absolute;right:0;top:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-md);z-index:100;min-width:180px;padding:4px 0">
+            <div onclick="openHistory(${l.id});closeLeadMenus()" class="lead-menu-item">📋 History & Notes</div>
+            <div onclick="openLeadSalesWA(${l.id});closeLeadMenus()" class="lead-menu-item" style="color:#15803d">📲 Send to Sales Team</div>
+            <div onclick="copyLeadDetails(${l.id});closeLeadMenus()" class="lead-menu-item">⎘ Copy Details</div>
+            <div onclick="oeL(${l.id});closeLeadMenus()" class="lead-menu-item">✏️ Edit Lead</div>
+            ${isAdmin()?`<div onclick="dL(${l.id});closeLeadMenus()" class="lead-menu-item" style="color:var(--red)">🗑 Delete</div>`:''}
+          </div>
+        </div>
       </td>
     </tr>`;
   }).join('');
@@ -2788,10 +2818,16 @@ function doBulkAssign(){
   if(!selected.length){toast('No leads selected','err');return;}
   if(!agentId){toast('Select a telecaller to assign to','err');return;}
   const agent=db.agents.find(a=>a.id===agentId);
+  const _skipStatuses=new Set(['Won','Closed','Not Interested']);
+  let skipped=0;
   selected.forEach(lid=>{
     const lead=db.leads.find(l=>l.id===lid);
-    if(lead){lead.assignedTo=agentId;lead.updatedAt=Date.now();}
+    if(lead){
+      if(_skipStatuses.has(lead.status)){skipped++;return;}
+      lead.assignedTo=agentId;lead.updatedAt=Date.now();
+    }
   });
+  if(skipped>0)toast(`Note: ${skipped} Won/Closed lead${skipped>1?'s':''} were skipped`,'ok');
   saveDB();syncNow();
   clearBulkSelection();
   rLeads(db.leads);
@@ -2823,7 +2859,7 @@ function showMorningBriefing(){
     const uid=currentUser.id;
     const myCalls=db.calls.filter(c=>c.agentId===uid&&c.datetime.startsWith(today));
     const tgt=currentUser.dailyTarget||60;
-    const closedSt=new Set(['Closed','Not Interested']);
+    const closedSt=new Set(['Closed','Won','Not Interested']);
     const overdueFollowups=db.calls.filter(c=>{
       if(c.agentId!==uid||!c.followupDate||c.followupDate>today)return false;
       const lead=db.leads.find(l=>l.id===c.leadId);
@@ -2846,7 +2882,7 @@ function showMorningBriefing(){
     const todayCalls=db.calls.filter(c=>myTCIds.includes(c.agentId)&&c.datetime.startsWith(today));
     const todayMeets=db.meetings.filter(m=>myTCIds.includes(m.agentId)&&m.date===today&&m.status==='Scheduled');
     const staleLeads=db.leads.filter(l=>{
-      if(!myTCIds.includes(l.assignedTo)||l.status==='Closed'||l.status==='Not Interested')return false;
+      if(!myTCIds.includes(l.assignedTo)||l.status==='Closed'||l.status==='Won'||l.status==='Not Interested')return false;
       const days=l.lastCalled?Math.floor((new Date(today)-new Date(l.lastCalled))/(1000*60*60*24)):999;
       return days>=3;
     });
@@ -3809,7 +3845,7 @@ function viewOverdueNow(){
 function checkOverdueFollowups(){
   if(!currentUser)return;
   const today=new Date().toISOString().split('T')[0];
-  const closedSt=new Set(['Closed','Not Interested']);
+  const closedSt=new Set(['Closed','Won','Not Interested']);
   // For telecallers: show their own overdue. For managers: show their team's overdue
   const relevantIds=currentUser.role==='telecaller'
     ?[currentUser.id]
@@ -4001,7 +4037,7 @@ function renderAdaptiveKPIs(uid, myCalls, todayCalls, today, dailyTarget) {
   const meetingsFixed    = myCalls.filter(c => c.meetingFixed).length;
   const svcResolved      = svcCalls.filter(c => c.outcome === 'Issue Resolved').length;
   const directClosures   = myMeetings.filter(m => m.meetingOutcome === 'Converted').length;
-  const closedStatuses = new Set(['Closed','Not Interested','Meeting Done','Meeting Fixed']);
+  const closedStatuses = new Set(['Closed','Won','Not Interested','Meeting Done','Meeting Fixed']);
   const followupsDue     = db.calls.filter(c => {
     if(c.agentId!==uid || !c.followupDate || c.followupDate>today) return false;
     const lead = db.leads.find(l=>l.id===c.leadId);
@@ -4213,7 +4249,7 @@ startApp = function() {
       const today=new Date().toISOString().split('T')[0];
       const sessionKey='dovecrm_overdue_shown_'+today+'_'+currentUser.id;
       if(!sessionStorage.getItem(sessionKey)){
-        const closedSt=new Set(['Closed','Not Interested']);
+        const closedSt=new Set(['Closed','Won','Not Interested']);
         const uid=currentUser.id;
         const overdue=db.calls.filter(c=>{
           if(c.agentId!==uid||!c.followupDate||c.followupDate>=today)return false;
