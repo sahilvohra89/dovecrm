@@ -462,7 +462,10 @@ tr:hover td{background:#faf9f5;}
           <h2 id="history-title">📋 Lead History</h2>
           <div id="history-subtitle" style="font-size:12px;color:var(--text3);margin-top:2px"></div>
         </div>
-        <button class="mx" onclick="closeHistory()">×</button>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button onclick="copyLeadDetails(_historyLeadId)" style="background:none;border:1px solid var(--border);border-radius:var(--r-sm);padding:4px 10px;font-size:12px;cursor:pointer;color:var(--text2)">⎘ Copy</button>
+          <button class="mx" onclick="closeHistory()">×</button>
+        </div>
       </div>
       <div class="mb" style="overflow-y:auto;flex:1">
         <!-- Internal Notes -->
@@ -1664,10 +1667,11 @@ function rLeads(list){
       <td>${warnAttempts}</td>
       <td style="font-size:12px;color:var(--text2)">${l.lastCalled?fd(l.lastCalled):'—'}</td>
       <td style="white-space:nowrap">
-        ${canLogCall?`<button class="btn btn-sm btn-p" style="padding:3px 9px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Log</button>`:''}
-        <button class="ab" onclick="openHistory(${l.id})" title="Call History & Notes">📋</button>
-        ${l.status!=='Closed'&&l.status!=='Not Interested'?`<button class="ab" onclick="openLeadSalesWA(${l.id})" title="${l.status==='Meeting Done'||l.status==='Meeting Fixed'?'Send meeting details to Sales Team':'Send lead details to Sales Team'}" style="background:#dcfce7;color:#15803d">📲</button>`:''}
-        <button class="ab" onclick="copyLeadDetails(${l.id})" title="Copy details">⎘</button>
+        ${(l.status==='Not Interested'||l.status==='Closed')?
+          `<button class="btn btn-sm" style="padding:3px 9px;font-size:11px;background:var(--amber-bg);color:var(--amber);border-color:var(--amber-b)" onclick="reactivateLead(${l.id})" title="Reactivate this lead">🔄 Reactivate</button>`
+          :(canLogCall?`<button class="btn btn-sm btn-p" style="padding:3px 9px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Log</button>`:'')}
+        <button class="btn btn-sm" onclick="openHistory(${l.id})" title="Call History & Notes" style="padding:3px 9px;font-size:11px;background:var(--purple-bg);color:var(--purple);border-color:var(--purple-b)">📋 History</button>
+        ${l.status!=='Closed'&&l.status!=='Not Interested'?`<button class="ab" onclick="openLeadSalesWA(${l.id})" title="${l.status==='Meeting Done'||l.status==='Meeting Fixed'?'Send meeting details':'Send lead details'}" style="background:#dcfce7;color:#15803d">📲</button>`:''}
         <button class="ab" onclick="oeL(${l.id})" title="Edit">✏️</button>
         ${isAdmin()?`<button class="ab d" onclick="dL(${l.id})" title="Delete">🗑</button>`:''}
       </td>
@@ -2604,6 +2608,31 @@ function dlXL(type){
   toast('✓ Excel file downloaded!','ok');
 }
 function hs(q){if(cv==='calls')rCalls();if(cv==='meetings')rMeet();if(cv==='leads')rLeads(db.leads);}
+
+// ── REACTIVATE LEAD ───────────────────────────────────────────
+function reactivateLead(leadId){
+  const lead=db.leads.find(l=>l.id===leadId);
+  if(!lead)return;
+  // Show confirmation with reason
+  const reason=prompt(`Reactivating "${lead.name}"
+
+Reason for reactivation (optional):`);
+  if(reason===null)return; // cancelled
+  const prevStatus=lead.status;
+  lead.status='New';
+  lead.updatedAt=Date.now();
+  // Add a note about reactivation
+  if(!lead.internalNotes)lead.internalNotes=[];
+  lead.internalNotes.push({
+    text:`🔄 Reactivated from "${prevStatus}" status.${reason?' Reason: '+reason:''}`,
+    author:currentUser.name,
+    authorId:currentUser.id,
+    at:new Date().toISOString()
+  });
+  saveDB();syncNow();
+  rLeads(db.leads);
+  toast(`✓ ${lead.name} reactivated! Status set to New.`,'ok');
+}
 
 // ── QUICK LEAD FILTERS ────────────────────────────────────────
 function filterCallbacksToday(){
