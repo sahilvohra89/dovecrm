@@ -605,6 +605,8 @@ tr:hover td{background:#faf9f5;}
         </select>
         <button class="btn btn-sm" onclick="openImport()">⬆ Import</button>
         <button class="btn btn-sm" onclick="clearLeadFilters()">Clear</button>
+        <button class="btn btn-sm" id="btn-callbacks-today" onclick="filterCallbacksToday()" title="Show leads to call back today" style="background:#fffbeb;color:#d97706;border-color:#fde68a;font-weight:600">📞 Callbacks Today</button>
+        <button class="btn btn-sm" id="btn-not-answered" onclick="filterNotAnswered()" title="Show leads not answered recently" style="background:#fef2f2;color:#dc2626;border-color:#fecaca;font-weight:600">📵 Not Answered</button>
       </div>
       <div class="card"><div class="table-wrap"><table><thead><tr>
         <th style="width:32px"><input type="checkbox" id="select-all-leads" onchange="toggleAllLeads(this.checked)" title="Select all"></th>
@@ -1657,8 +1659,8 @@ function rLeads(list){
         ${canLogCall?`<button class="btn btn-sm btn-p" style="padding:3px 9px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Quick Log</button>`:'<span style="color:var(--text3);font-size:12px">—</span>'}
       </td>
       <td style="white-space:nowrap">
-        <button class="ab" onclick="copyLeadDetails(${l.id})" title="Copy lead details">📋</button>
-        <button class="ab" onclick="openHistory(${l.id})" title="View History & Notes">🕐</button>
+        <button class="ab" onclick="copyLeadDetails(${l.id})" title="Copy lead details to clipboard">⎘</button>
+        <button class="ab" onclick="openHistory(${l.id})" title="View call history & notes" style="font-size:13px">📋 History</button>
         <button class="ab" onclick="oeL(${l.id})">✏️</button>
         ${isAdmin()?`<button class="ab d" onclick="dL(${l.id})">🗑</button>`:''}
       </td>
@@ -1666,7 +1668,15 @@ function rLeads(list){
     ${qlHtml?`<tr><td colspan="12" style="padding:0 14px 6px;background:var(--accent-bg)">${qlHtml}</td></tr>`:''}`;
   }).join('');
 }
-function clearLeadFilters(){['lf-status','lf-prio','lf-agent','lf-source'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});rLeads(db.leads);}
+function clearLeadFilters(){
+  ['lf-status','lf-prio','lf-agent','lf-source'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  // Reset quick filter button styles
+  const cb=document.getElementById('btn-callbacks-today');
+  const na=document.getElementById('btn-not-answered');
+  if(cb){cb.style.background='';cb.style.color='';}
+  if(na){na.style.background='';na.style.color='';}
+  rLeads(db.leads);
+}
 
 // Quick Log Call — inline panel in Leads table
 let qlOpenId=null;
@@ -1706,6 +1716,18 @@ function saveQuickLog(leadId){
   const followupDate=panel.querySelector('.ql-fu').value;
   if(!outcome){toast('Please select an outcome.','err');panel.querySelector('.ql-outcome').focus();qlSaving=false;return;}
   if(!dt){toast('Please set the date & time.','err');qlSaving=false;return;}
+  // Mandatory notes for Not Interested and Not Answered
+  if((outcome==='Not Interested'||outcome==='Not Answered')&&!notes){
+    const notesEl=panel.querySelector('.ql-notes');
+    if(notesEl){
+      notesEl.style.border='2px solid var(--red)';
+      notesEl.placeholder=outcome==='Not Interested'?'Required: Why is the customer not interested?':'Required: What happened when you called?';
+      notesEl.focus();
+      setTimeout(()=>{notesEl.style.border='';},3000);
+    }
+    toast(outcome==='Not Interested'?'Please add reason for Not Interested':'Please add a note for Not Answered','err');
+    qlSaving=false;return;
+  }
   const mf=outcome==='Meeting Fixed';
   db.calls.unshift({
     id:db.nC++,leadId:leadId,leadName:lead.name,
@@ -1718,6 +1740,14 @@ function saveQuickLog(leadId){
   // Auto-update lead status based on outcome
   if(outcome==='Interested'&&lead.status==='New')lead.status='Interested';
   if(outcome==='Not Interested')lead.status='Not Interested';
+  // Auto set next call date for Not Answered → tomorrow
+  if(outcome==='Not Answered'&&!followupDate){
+    const tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+1);
+    const tomorrowStr=tomorrow.toISOString().split('T')[0];
+    // Update the saved call record's followupDate
+    db.calls[0].followupDate=tomorrowStr;
+    toast('📅 Auto-set callback for tomorrow!','ok');
+  }
   if(outcome==='Meeting Fixed'){
     lead.status='Meeting Done';
     // BUGFIX: use db.agents (not db.users which may not exist) for agent lookup
@@ -2193,6 +2223,13 @@ function saveM(){
       if(existingCall){if(!li)li=existingCall.leadId;if(!ai)ai=existingCall.agentId;}
     }
     if(!li||!ai||!dt||!oc2){toast('Fill all required fields.','err');return;}
+    const _modalNotes=document.getElementById('fn')?.value.trim()||'';
+    if((oc2==='Not Interested'||oc2==='Not Answered')&&!_modalNotes){
+      document.getElementById('fn').style.border='2px solid var(--red)';
+      document.getElementById('fn').focus();
+      setTimeout(()=>{if(document.getElementById('fn'))document.getElementById('fn').style.border='';},3000);
+      toast(oc2==='Not Interested'?'Please add reason for Not Interested':'Please add a note for Not Answered','err');return;
+    }
     const lead=db.leads.find(x=>x.id===li),agent=db.agents.find(x=>x.id===ai);
     const mf=oc2==='Meeting Fixed'||(document.getElementById('fcmf')?.checked||false);
     const callType=document.getElementById('fctype')?.value||'Customer Call';
@@ -2549,6 +2586,92 @@ function dlXL(type){
   toast('✓ Excel file downloaded!','ok');
 }
 function hs(q){if(cv==='calls')rCalls();if(cv==='meetings')rMeet();if(cv==='leads')rLeads(db.leads);}
+
+// ── QUICK LEAD FILTERS ────────────────────────────────────────
+function filterCallbacksToday(){
+  const today=new Date().toISOString().split('T')[0];
+  // Find lead IDs with callback due today
+  const callbackLids=new Set(db.calls
+    .filter(c=>c.followupDate===today&&(c.outcome==='Callback'||c.outcome==='Follow-up'||c.outcome==='Interested'))
+    .map(c=>c.leadId));
+  // Highlight button as active
+  document.getElementById('btn-callbacks-today').style.background='#d97706';
+  document.getElementById('btn-callbacks-today').style.color='#fff';
+  document.getElementById('btn-not-answered').style.background='';
+  document.getElementById('btn-not-answered').style.color='';
+  // Filter leads table
+  const filtered=db.leads.filter(l=>callbackLids.has(l.id));
+  if(!filtered.length){toast('No callbacks due today!','ok');clearLeadFilters();return;}
+  const tb=document.getElementById('ltb');
+  // Temporarily show only matching leads
+  rLeadsFiltered(filtered);
+  toast(`📞 ${filtered.length} callback${filtered.length>1?'s':''} due today`,'ok');
+}
+
+function filterNotAnswered(){
+  const today=new Date().toISOString().split('T')[0];
+  const threeDaysAgo=new Date();threeDaysAgo.setDate(threeDaysAgo.getDate()-3);
+  const cutoff=threeDaysAgo.toISOString().split('T')[0];
+  // Leads where last call outcome was Not Answered within last 3 days
+  const naLids=new Set();
+  db.leads.forEach(l=>{
+    if(l.status==='Closed'||l.status==='Not Interested')return;
+    const lastCall=db.calls.filter(c=>c.leadId===l.id).sort((a,b)=>b.datetime.localeCompare(a.datetime))[0];
+    if(lastCall&&lastCall.outcome==='Not Answered'&&lastCall.datetime.split('T')[0]>=cutoff){
+      naLids.add(l.id);
+    }
+  });
+  // Highlight button
+  document.getElementById('btn-not-answered').style.background='#dc2626';
+  document.getElementById('btn-not-answered').style.color='#fff';
+  document.getElementById('btn-callbacks-today').style.background='';
+  document.getElementById('btn-callbacks-today').style.color='';
+  const filtered=db.leads.filter(l=>naLids.has(l.id));
+  if(!filtered.length){toast('No not-answered leads recently!','ok');clearLeadFilters();return;}
+  rLeadsFiltered(filtered);
+  toast(`📵 ${filtered.length} lead${filtered.length>1?'s':''} not answered recently`,'ok');
+}
+
+function rLeadsFiltered(list){
+  // Show filtered leads without changing dropdowns
+  const tb=document.getElementById('ltb');
+  if(!list.length){tb.innerHTML='<tr><td colspan="12"><div class="empty"><p>No leads found.</p></div></td></tr>';return;}
+  const today=new Date().toISOString().split('T')[0];
+  tb.innerHTML=list.map(l=>{
+    const a=an(l.assignedTo);
+    const warnAttempts=l.attempts>=4?`<span style="color:var(--red);font-weight:700">⚠️ ${l.attempts}</span>`:`<span style="font-family:'JetBrains Mono',monospace">${l.attempts||0}</span>`;
+    const canLogCall=(currentUser.role==='telecaller'&&l.assignedTo===currentUser.id)||isAdmin();
+    const daysSinceCall=l.lastCalled?Math.floor((new Date(today)-new Date(l.lastCalled))/(1000*60*60*24)):999;
+    const isStale=daysSinceCall>=3&&l.status!=='Closed'&&l.status!=='Not Interested'&&l.status!=='Meeting Done'&&l.status!=='Meeting Fixed';
+    const staleBadge=isStale?`<span style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:4px;font-size:10px;font-weight:700;padding:1px 5px;margin-left:4px">🥶 ${daysSinceCall===999?'Never':daysSinceCall+'d'}</span>`:'';
+    return`<tr style="${isStale?'background:rgba(220,38,38,.03)':''}">
+      <td style="width:32px;text-align:center"><input type="checkbox" class="lead-cb" value="${l.id}" onchange="updateBulkBar()"></td>
+      <td><div class="nc">${avCell(l.name)}<div>
+        <div style="font-weight:600">${l.name}${staleBadge}</div>
+        <div style="font-size:11.5px;color:var(--text3)">${l.company||''}</div>
+      </div></div></td>
+      <td><div style="display:flex;align-items:center;gap:6px">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:12.5px">${l.phone||'—'}</span>
+        ${l.phone?`<button class="wa-btn" onclick="openWATemplates(${l.id})" style="border:none;cursor:pointer;font-size:10.5px;padding:2px 6px">💬 WA</button>`:''}
+      </div></td>
+      <td>${prioBdg(l.priority)}</td>
+      <td>${bdg(l.status)}</td>
+      <td><div class="nc">${avCell(a)}<span style="font-size:13px">${a}</span></div></td>
+      <td>${bdg(l.source||'—','bgr')}</td>
+      <td>${warnAttempts}</td>
+      <td style="font-size:12px;color:var(--text2)">${l.lastCalled?fd(l.lastCalled):'—'}</td>
+      <td style="white-space:nowrap">
+        ${canLogCall?`<button class="btn btn-sm btn-p" style="padding:3px 9px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Quick Log</button>`:'<span style="color:var(--text3);font-size:12px">—</span>'}
+      </td>
+      <td style="white-space:nowrap">
+        <button class="ab" onclick="copyLeadDetails(${l.id})" title="Copy">⎘</button>
+        <button class="ab" onclick="openHistory(${l.id})" title="History" style="font-size:13px">📋 History</button>
+        <button class="ab" onclick="oeL(${l.id})">✏️</button>
+        ${isAdmin()?`<button class="ab d" onclick="dL(${l.id})">🗑</button>`:''}
+      </td>
+    </tr>`;
+  }).join('');
+}
 
 // ── FEATURE 1: STALE LEAD ALERT ──────────────────────────────
 // Already handled inline in rLeads - see staleBadge variable
