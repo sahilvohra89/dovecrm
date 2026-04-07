@@ -263,6 +263,15 @@ tr:hover td{background:#faf9f5;}
 /* ── LEAD ACTION MENU ── */
 .lead-menu-item{padding:8px 14px;font-size:13px;cursor:pointer;color:var(--text);transition:background .1s;white-space:nowrap;}
 .lead-menu-item:hover{background:var(--bg);}
+/* ── LEAD ACTION MODAL ── */
+.lam-item{padding:12px 20px;font-size:14px;cursor:pointer;color:var(--text);border-bottom:1px solid var(--border);transition:background .1s;}
+.lam-item:last-child{border-bottom:none;}
+.lam-item:hover{background:var(--bg);}
+.lam-amber{color:var(--amber);}
+.lam-purple{color:var(--purple);}
+.lam-green{color:#15803d;}
+.lam-red{color:var(--red);}
+
 /* ── WHATSAPP TEMPLATES ── */
 .wa-tmpl-modal{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9000;display:flex;align-items:center;justify-content:center;}
 .wa-tmpl-box{background:var(--surface);border-radius:var(--r-lg);width:480px;max-width:95vw;max-height:85vh;overflow-y:auto;box-shadow:var(--shadow-md);}
@@ -441,6 +450,20 @@ tr:hover td{background:#faf9f5;}
     <button class="btn btn-sm btn-g" onclick="dlXL('calls')" style="background:#217346;color:#fff;border-color:#217346">📊 Calls XL</button>
     <button class="btn btn-sm btn-g" onclick="dlXL('report')" style="background:#217346;color:#fff;border-color:#217346">📊 Report XL</button>
     <button class="btn btn-sm" onclick="dlJ()">Backup JSON</button>
+  </div>
+
+  <!-- LEAD ACTION MODAL -->
+  <div class="modal-ov" id="lead-action-mov" onclick="if(event.target===this)closeLAM()">
+    <div class="modal" style="width:320px;padding:0">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div id="lam-name" style="font-weight:700;font-size:15px"></div>
+          <div id="lam-company" style="font-size:12px;color:var(--text3);margin-top:2px"></div>
+        </div>
+        <button onclick="closeLAM()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3)">×</button>
+      </div>
+      <div id="lam-body" style="padding:8px 0"></div>
+    </div>
   </div>
 
   <!-- WHATSAPP TEMPLATES MODAL -->
@@ -1671,21 +1694,10 @@ function rLeads(list){
       <td style="font-size:12px;color:var(--text2)">${l.lastCalled?fd(l.lastCalled):'—'}</td>
       <td style="white-space:nowrap">
         ${canLogCall&&l.status!=='Not Interested'&&l.status!=='Closed'&&l.status!=='Won'
-          ?`<button class="btn btn-sm btn-p" style="padding:3px 8px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Log</button>`:''}
-        <div style="display:inline-block;position:relative">
-          <button class="btn btn-sm" onclick="toggleLeadMenu(event,${l.id})" style="padding:3px 8px;font-size:11px">Actions ▾</button>
-          <div id="lead-menu-${l.id}" class="lead-action-menu" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-md);min-width:190px;padding:4px 0">
-            ${(l.status==='Not Interested'||l.status==='Closed'||l.status==='Won')
-              ?`<div onclick="reactivateLead(${l.id});closeLeadMenus()" class="lead-menu-item" style="color:var(--amber)">🔄 Reactivate Lead</div>`
-              :''}
-            <div onclick="openHistory(${l.id});closeLeadMenus()" class="lead-menu-item">📋 History & Notes</div>
-            ${l.status!=='Closed'&&l.status!=='Not Interested'&&l.status!=='Won'
-              ?`<div onclick="openLeadSalesWA(${l.id});closeLeadMenus()" class="lead-menu-item" style="color:#15803d">📲 Send to Sales Team</div>`:''}
-            <div onclick="copyLeadDetails(${l.id});closeLeadMenus()" class="lead-menu-item">⎘ Copy Details</div>
-            <div onclick="oeL(${l.id});closeLeadMenus()" class="lead-menu-item">✏️ Edit Lead</div>
-            ${isAdmin()?`<div onclick="dL(${l.id});closeLeadMenus()" class="lead-menu-item" style="color:var(--red)">🗑 Delete</div>`:''}
-          </div>
-        </div>
+          ?`<button class="btn btn-sm btn-p" style="padding:2px 7px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Log</button>`:
+          (l.status==='Not Interested'||l.status==='Closed'||l.status==='Won')
+          ?`<button class="btn btn-sm" style="padding:2px 7px;font-size:11px;background:var(--amber-bg);color:var(--amber);border-color:var(--amber-b)" onclick="reactivateLead(${l.id})">🔄</button>`:''}
+        <button class="btn btn-sm" style="padding:2px 7px;font-size:13px" onclick="openLAM(${l.id})">⋯</button>
       </td>
     </tr>
     ${qlHtml?`<tr><td colspan="10" style="padding:0 14px 6px;background:var(--accent-bg)">${qlHtml}</td></tr>`:''}`;
@@ -2621,27 +2633,32 @@ function dlXL(type){
 }
 function hs(q){if(cv==='calls')rCalls();if(cv==='meetings')rMeet();if(cv==='leads')rLeads(db.leads);}
 
+// ── LEAD ACTION MODAL (⋯ button) ─────────────────────────────
+function openLAM(leadId){
+  const l=db.leads.find(x=>x.id===leadId);
+  if(!l)return;
+  const canLogCall=(currentUser.role==='telecaller'&&l.assignedTo===currentUser.id)||isAdmin();
+  document.getElementById('lam-name').textContent=l.name;
+  document.getElementById('lam-company').textContent=(l.company||'')+(l.phone?' · '+l.phone:'');
+  const isInactive=l.status==='Not Interested'||l.status==='Closed'||l.status==='Won';
+  document.getElementById('lam-body').innerHTML=`
+    <div style="padding:4px 0">
+      ${!isInactive&&canLogCall?`<div class="lam-item" onclick="closeLAM();quickLogCall(${l.id})">⚡ Quick Log Call</div>`:''}
+      ${isInactive?`<div class="lam-item lam-amber" onclick="closeLAM();reactivateLead(${l.id})">🔄 Reactivate Lead</div>`:''}
+      <div class="lam-item lam-purple" onclick="closeLAM();openHistory(${l.id})">📋 History & Notes</div>
+      ${!isInactive?`<div class="lam-item lam-green" onclick="closeLAM();openLeadSalesWA(${l.id})">📲 Send to Sales Team</div>`:''}
+      <div class="lam-item" onclick="closeLAM();copyLeadDetails(${l.id})">⎘ Copy Details</div>
+      <div class="lam-item" onclick="closeLAM();oeL(${l.id})">✏️ Edit Lead</div>
+      ${isAdmin()?`<div class="lam-item lam-red" onclick="closeLAM();dL(${l.id})">🗑 Delete Lead</div>`:''}
+    </div>`;
+  document.getElementById('lead-action-mov').classList.add('open');
+}
+function closeLAM(){
+  document.getElementById('lead-action-mov').classList.remove('open');
+}
+
 // ── LEAD ACTION DROPDOWN MENU ─────────────────────────────────
-function toggleLeadMenu(e,leadId){
-  e.stopPropagation();
-  closeLeadMenus();
-  const menu=document.getElementById('lead-menu-'+leadId);
-  if(!menu)return;
-  // Use fixed positioning to escape overflow:hidden parent
-  const btn=e.currentTarget||e.target;
-  const rect=btn.getBoundingClientRect();
-  menu.style.position='fixed';
-  menu.style.top=(rect.bottom+4)+'px';
-  menu.style.right=(window.innerWidth-rect.right)+'px';
-  menu.style.left='auto';
-  menu.style.display='block';
-  menu.style.zIndex='9999';
-}
-function closeLeadMenus(){
-  document.querySelectorAll('.lead-action-menu').forEach(m=>m.style.display='none');
-}
-// Close menus when clicking elsewhere
-document.addEventListener('click',closeLeadMenus);
+// Lead action handled by openLAM modal
 
 // ── REACTIVATE LEAD ───────────────────────────────────────────
 function reactivateLead(leadId){
@@ -2750,20 +2767,10 @@ function rLeadsFiltered(list){
       <td style="font-size:12px;color:var(--text2)">${l.lastCalled?fd(l.lastCalled):'—'}</td>
       <td style="white-space:nowrap">
         ${canLogCall&&l.status!=='Not Interested'&&l.status!=='Closed'&&l.status!=='Won'
-          ?`<button class="btn btn-sm btn-p" style="padding:3px 8px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Log</button>`:''}
-        <div style="display:inline-block;position:relative">
-          <button class="btn btn-sm" onclick="toggleLeadMenu(event,${l.id})" style="padding:3px 8px;font-size:11px">Actions ▾</button>
-          <div id="lead-menu-${l.id}" class="lead-action-menu" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-md);min-width:190px;padding:4px 0">
-            ${(l.status==='Not Interested'||l.status==='Closed'||l.status==='Won')
-              ?`<div onclick="reactivateLead(${l.id});closeLeadMenus()" class="lead-menu-item" style="color:var(--amber)">🔄 Reactivate Lead</div>`:''}
-            <div onclick="openHistory(${l.id});closeLeadMenus()" class="lead-menu-item">📋 History & Notes</div>
-            ${l.status!=='Closed'&&l.status!=='Not Interested'&&l.status!=='Won'
-              ?`<div onclick="openLeadSalesWA(${l.id});closeLeadMenus()" class="lead-menu-item" style="color:#15803d">📲 Send to Sales Team</div>`:''}
-            <div onclick="copyLeadDetails(${l.id});closeLeadMenus()" class="lead-menu-item">⎘ Copy Details</div>
-            <div onclick="oeL(${l.id});closeLeadMenus()" class="lead-menu-item">✏️ Edit Lead</div>
-            ${isAdmin()?`<div onclick="dL(${l.id});closeLeadMenus()" class="lead-menu-item" style="color:var(--red)">🗑 Delete</div>`:''}
-          </div>
-        </div>
+          ?`<button class="btn btn-sm btn-p" style="padding:2px 7px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Log</button>`:
+          (l.status==='Not Interested'||l.status==='Closed'||l.status==='Won')
+          ?`<button class="btn btn-sm" style="padding:2px 7px;font-size:11px;background:var(--amber-bg);color:var(--amber);border-color:var(--amber-b)" onclick="reactivateLead(${l.id})">🔄</button>`:''}
+        <button class="btn btn-sm" style="padding:2px 7px;font-size:13px" onclick="openLAM(${l.id})">⋯</button>
       </td>
     </tr>`;
   }).join('');
