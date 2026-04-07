@@ -1611,6 +1611,7 @@ function ums(id,s){const m=db.meetings.find(x=>x.id===id);if(m){m.status=s;saveD
 
 // ── LEADS ─────────────────────────────────────────────────────
 function rLeads(list){
+  qlSaveState();
   const today=new Date().toISOString().split('T')[0];
   const q=document.getElementById('si')?.value.toLowerCase().trim();
   const sf=document.getElementById('lf-status')?.value;
@@ -1703,6 +1704,7 @@ function rLeads(list){
     </tr>
     ${qlHtml?`<tr><td colspan="10" style="padding:0 14px 6px;background:var(--accent-bg)">${qlHtml}</td></tr>`:''}`;
   }).join('');
+  qlRestoreState();
 }
 function clearLeadFilters(){
   ['lf-status','lf-prio','lf-agent','lf-source'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
@@ -1717,6 +1719,38 @@ function clearLeadFilters(){
 // Quick Log Call — inline panel in Leads table
 let qlOpenId=null;
 let qlSaving=false; // guard against double-save
+let qlState=null; // saves field values across re-renders
+
+function qlSaveState(){
+  if(!qlOpenId)return;
+  const panel=document.getElementById('ql-panel-'+qlOpenId);
+  if(!panel||!panel.classList.contains('open'))return;
+  qlState={
+    leadId:qlOpenId,
+    ctype:panel.querySelector('.ql-ctype')?.value||'',
+    outcome:panel.querySelector('.ql-outcome')?.value||'',
+    dt:panel.querySelector('.ql-dt')?.value||'',
+    dur:panel.querySelector('.ql-dur')?.value||'',
+    fu:panel.querySelector('.ql-fu')?.value||'',
+    notes:panel.querySelector('.ql-notes')?.value||''
+  };
+}
+
+function qlRestoreState(){
+  if(!qlState||!qlOpenId)return;
+  const panel=document.getElementById('ql-panel-'+qlOpenId);
+  if(!panel)return;
+  panel.classList.add('open');
+  const ctypeEl=panel.querySelector('.ql-ctype');
+  if(ctypeEl&&qlState.ctype){ctypeEl.value=qlState.ctype;qlSwitchOutcomes(ctypeEl);}
+  const outcomeEl=panel.querySelector('.ql-outcome');
+  if(outcomeEl&&qlState.outcome){outcomeEl.value=qlState.outcome;updateFuLabel(panel,qlState.outcome);}
+  if(qlState.dt){const el=panel.querySelector('.ql-dt');if(el)el.value=qlState.dt;}
+  if(qlState.dur){const el=panel.querySelector('.ql-dur');if(el)el.value=qlState.dur;}
+  if(qlState.fu){const el=panel.querySelector('.ql-fu');if(el)el.value=qlState.fu;}
+  if(qlState.notes){const el=panel.querySelector('.ql-notes');if(el)el.value=qlState.notes;}
+}
+
 function quickLogCall(leadId){
   // Close previously open panel
   if(qlOpenId&&qlOpenId!==leadId){
@@ -1726,7 +1760,7 @@ function quickLogCall(leadId){
   qlOpenId=leadId;
   const panel=document.getElementById('ql-panel-'+leadId);
   if(!panel)return;
-  if(panel.classList.contains('open')){panel.classList.remove('open');qlOpenId=null;return;}
+  if(panel.classList.contains('open')){panel.classList.remove('open');qlOpenId=null;qlState=null;return;}
   // Set default datetime to now
   const dtInput=panel.querySelector('.ql-dt');
   if(dtInput&&!dtInput.value)dtInput.value=new Date().toISOString().slice(0,16);
@@ -1808,6 +1842,7 @@ function saveQuickLog(leadId){
   saveDB();
   // BUGFIX: close panel BEFORE re-rendering, and clear qlOpenId first
   qlOpenId=null;
+  qlState=null;
   panel.classList.remove('open');
   // Re-render all relevant views
   rLeads(db.leads);
