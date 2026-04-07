@@ -241,6 +241,7 @@ tr:hover td{background:#faf9f5;}
 .tag-role-tc{background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;}
 .tag-role-mg{background:#fdf4ff;color:#7e22ce;border:1px solid #e9d5ff;}
 .tag-role-sa{background:linear-gradient(135deg,#581c87,#1e1b4b);color:#fff;border:none;}
+.tag-role-sales{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;}
 
 /* ── LEAD TAGS ── */
 .lead-tag{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:100px;margin:1px;}
@@ -678,6 +679,34 @@ tr:hover td{background:#faf9f5;}
           <div id="target-settings"></div>
           <button class="btn btn-sm btn-p" onclick="saveTargets()" style="margin-top:8px">Save Targets</button>
         </div>
+        <!-- Sales & Service Team WhatsApp Numbers -->
+        <div class="rc" id="wa-teams-box" style="margin-bottom:20px;display:none">
+          <h3>📲 WhatsApp Teams</h3>
+          <p style="font-size:13px;color:var(--text2);margin-bottom:14px">Add Sales and Service team members. Telecallers can send meeting/service details to them via WhatsApp.</p>
+          
+          <!-- Sales Team -->
+          <div style="margin-bottom:18px">
+            <div style="font-weight:700;font-size:13px;margin-bottom:8px;color:var(--text)">🤝 Sales / Field Team</div>
+            <div id="sales-team-list" style="margin-bottom:8px"></div>
+            <div style="display:flex;gap:8px">
+              <input class="fi" id="sales-name-input" placeholder="Name e.g. Ramesh" style="flex:1">
+              <input class="fi" id="sales-phone-input" placeholder="WhatsApp number" maxlength="10" style="width:150px">
+              <button class="btn btn-sm btn-p" onclick="addTeamMember('sales')">+ Add</button>
+            </div>
+          </div>
+
+          <!-- Service Team -->
+          <div>
+            <div style="font-weight:700;font-size:13px;margin-bottom:8px;color:var(--text)">🔧 Service Team</div>
+            <div id="service-team-list" style="margin-bottom:8px"></div>
+            <div style="display:flex;gap:8px">
+              <input class="fi" id="service-name-input" placeholder="Name e.g. Suresh" style="flex:1">
+              <input class="fi" id="service-phone-input" placeholder="WhatsApp number" maxlength="10" style="width:150px">
+              <button class="btn btn-sm btn-p" onclick="addTeamMember('service')">+ Add</button>
+            </div>
+          </div>
+        </div>
+
         <div class="rc">
           <h3>📋 Apps Script Setup Guide</h3>
           <div style="background:var(--accent-bg);border:1px solid #bfdbfe;border-radius:var(--r-sm);padding:12px 14px;margin-bottom:14px;font-size:13px;color:var(--accent-t);line-height:1.8">
@@ -817,7 +846,18 @@ function loadDB(){
   }catch{return seed();}
 }
 function saveDB(){localStorage.setItem(SK,JSON.stringify(db));}
-function loadCfg(){try{const s=localStorage.getItem(CFG_KEY);return s?JSON.parse(s):{gsUrl:'',gsSheet:'DoveCRM',targets:{},lastSync:null};}catch{return{gsUrl:'',gsSheet:'DoveCRM',targets:{},lastSync:null};}}
+function loadCfg(){
+  try{
+    const s=localStorage.getItem(CFG_KEY);
+    const d=s?JSON.parse(s):{};
+    if(!d.gsUrl)d.gsUrl='';
+    if(!d.gsSheet)d.gsSheet='DoveCRM';
+    if(!d.targets)d.targets={};
+    if(!d.lastSync)d.lastSync=null;
+    if(!d.salesTeam)d.salesTeam=[]; // [{name,phone}]
+    if(!d.serviceTeam)d.serviceTeam=[]; // [{name,phone}]
+    return d;
+  }catch{return{gsUrl:'',gsSheet:'DoveCRM',targets:{},lastSync:null,salesTeam:[],serviceTeam:[]};}}
 function saveCfg(){localStorage.setItem(CFG_KEY,JSON.stringify(cfg));}
 
 function seed(){
@@ -1035,6 +1075,7 @@ function navigateTo(v,el){
   pf();
   if(v==='dashboard')rDash();
   if(v==='my-dashboard')rMyDash();
+
   if(v==='calls')rCalls();
   if(v==='meetings')rMeet();
   if(v==='leads')rLeads(db.leads);
@@ -1062,6 +1103,20 @@ const oc={'Meeting Fixed':'#2563eb','Interested':'#16a34a','Callback':'#d97706',
   'Issue Resolved':'#16a34a','Escalated':'#dc2626','Pending Callback':'#d97706','Parts Ordered':'#0d9488','Not Reachable':'#9896a0'};
 const SVC_OUTCOMES=['Issue Resolved','Escalated','Pending Callback','Parts Ordered','Not Reachable'];
 const SALES_OUTCOMES=['Interested','Meeting Fixed','Callback','Not Answered','Not Interested','Follow-up'];
+function updateFuLabel(panel,outcome){
+  if(!panel)return;
+  const labelEl=panel.querySelector('.ql-fu-label');
+  if(!labelEl)return;
+  if(outcome==='Meeting Fixed'){
+    labelEl.textContent='Meeting Date';
+    labelEl.style.color='var(--green)';
+    labelEl.style.fontWeight='700';
+  } else {
+    labelEl.textContent='Next Call Date';
+    labelEl.style.color='';
+    labelEl.style.fontWeight='';
+  }
+}
 function qlSwitchOutcomes(ctypeSelect){
   const isService=ctypeSelect.value==='Service Call';
   const outSel=ctypeSelect.closest('.ql-panel')?.querySelector('.ql-outcome');
@@ -1386,7 +1441,7 @@ function rMyDash(){
               <input class="fi" id="mu-deal-${m.id}" type="number" placeholder="0" value="${m.dealValue||''}" style="font-size:12.5px">
             </div>
             <div>
-              <label class="fl">Next Follow-up Date</label>
+              <label class="fl">Next Follow-up / Callback Date</label>
               <input class="fi" id="mu-followup-${m.id}" type="date" value="${m.followupDate||''}" style="font-size:12.5px">
             </div>
           </div>
@@ -1452,6 +1507,7 @@ function rCalls(){
     <td style="font-size:12px;color:var(--text2)">${c.followupDate?fd(c.followupDate):'—'}</td>
     <td style="font-size:12px;color:var(--text3);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c.notes||''}">${c.notes||'—'}</td>
     <td style="white-space:nowrap">
+      ${c.callType==='Service Call'?`<button class="ab" onclick="openSendServiceWA(${c.id})" title="Send to Service Team" style="background:#f0fdfa;color:#0d9488">📲</button>`:''}
       <button class="ab" onclick="oeC(${c.id})" title="Edit">✏️</button>
       ${isAdmin()?`<button class="ab d" onclick="dC(${c.id})" title="Delete">🗑</button>`:''}
     </td>
@@ -1491,8 +1547,9 @@ function rMeet(){
     <td style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px">${m.dealValue?'₹'+Number(m.dealValue).toLocaleString('en-IN'):'—'}</td>
     <td style="font-size:12px;color:var(--text2)">${m.followupDate?fd(m.followupDate):'—'}</td>
     <td style="white-space:nowrap">
+      ${(cfg.salesTeam&&cfg.salesTeam.length>0)||(isAdmin()&&true)?`<button class="ab" onclick="openSendMeetingWA(${m.id})" title="Send to Sales Team" style="background:#dcfce7;color:#15803d">📲</button>`:''} 
       <button class="ab" onclick="oeM(${m.id})">✏️</button>
-      ${isAdmin()?`<button class="ab d" onclick="dM(${m.id})">🗑</button>`:''}
+      ${isAdmin()?`<button class="ab d" onclick="dM(${m.id})">🗑</button>`:''} 
     </td>
   </tr>`).join('');
 }
@@ -1533,14 +1590,14 @@ function rLeads(list){
           </div>
           <div class="ql-field">
             <span class="ql-label">Outcome *</span>
-            <select class="ql-select ql-outcome" style="width:150px">
+            <select class="ql-select ql-outcome" style="width:150px" onchange="updateFuLabel(this.closest('.ql-panel'),this.value)">
               <option value="">Select…</option>
               <option>Interested</option><option>Meeting Fixed</option><option>Callback</option>
               <option>Not Answered</option><option>Not Interested</option><option>Follow-up</option>
             </select>
           </div>
           <div class="ql-field">
-            <span class="ql-label">Date & Time</span>
+            <span class="ql-label">Call Date & Time</span>
             <input class="ql-input ql-dt" type="datetime-local" style="width:170px">
           </div>
           <div class="ql-field">
@@ -1548,7 +1605,7 @@ function rLeads(list){
             <input class="ql-input ql-dur" type="number" min="1" placeholder="0" style="width:72px">
           </div>
           <div class="ql-field">
-            <span class="ql-label">Follow-up Date</span>
+            <span class="ql-label ql-fu-label">Next Call Date</span>
             <input class="ql-input ql-fu" type="date" style="width:140px" min="${today}">
           </div>
         </div>
@@ -1815,6 +1872,10 @@ function rRep(){
 
 // ── SETTINGS ──────────────────────────────────────────────────
 function rSettings(){
+  // Show WhatsApp teams box for SA and Manager
+  const teamsBox=document.getElementById('wa-teams-box');
+  if(teamsBox)teamsBox.style.display=(currentUser.role==='superadmin'||currentUser.role==='manager')?'block':'none';
+  renderTeamLists();
   const el=document.getElementById('gs-url');if(el)el.value=cfg.gsUrl||'';
   const el2=document.getElementById('gs-sheet');if(el2)el2.value=cfg.gsSheet||'DoveCRM';
   const tb=document.getElementById('targets-box');
@@ -1973,7 +2034,7 @@ function gF(type,d){
       🔧 <strong>Service Call</strong> — outcomes track resolution status. "Issue Resolved" marks the ticket as closed.
     </div>
     <div class="fr">
-      <div class="fg"><label class="fl">Follow-up Date</label><input class="fi" id="ffu" type="date" value="${d.followupDate||''}"></div>
+      <div class="fg"><label class="fl" id="ffu-label">${(d.outcome==='Meeting Fixed')?'Meeting Date':'Next Call Date'}</label><input class="fi" id="ffu" type="date" value="${d.followupDate||''}"></div>
       <div class="fg" id="fgmf" style="display:${d.outcome==='Meeting Fixed'?'flex':'none'};align-items:center;padding-top:20px">
         <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px"><input type="checkbox" id="fcmf" ${d.meetingFixed?'checked':''} style="margin:0">Meeting fixed via this call</label>
       </div>
@@ -2003,7 +2064,7 @@ function gF(type,d){
       <div class="fg"><label class="fl">Deal Value (₹)</label><input class="fi" id="fmdeal" type="number" value="${d.dealValue||''}" placeholder="0"></div>
     </div>
     <div class="fr">
-      <div class="fg"><label class="fl">Next Follow-up Date</label><input class="fi" id="fmfollowup" type="date" value="${d.followupDate||''}"></div>
+      <div class="fg"><label class="fl">Next Follow-up / Callback Date</label><input class="fi" id="fmfollowup" type="date" value="${d.followupDate||''}"></div>
       <div class="fg"></div>
     </div>
     <div class="fg"><label class="fl">Notes</label><textarea class="ft" id="fmn">${d.notes||''}</textarea></div>`;
@@ -2468,6 +2529,148 @@ function dlXL(type){
   toast('✓ Excel file downloaded!','ok');
 }
 function hs(q){if(cv==='calls')rCalls();if(cv==='meetings')rMeet();if(cv==='leads')rLeads(db.leads);}
+
+
+// ── SALES & SERVICE TEAM MANAGEMENT ──────────────────────────
+function renderTeamLists(){
+  ['sales','service'].forEach(type=>{
+    const list=document.getElementById(type+'-team-list');
+    if(!list)return;
+    const team=cfg[type+'Team']||[];
+    if(!team.length){
+      list.innerHTML='<div style="color:var(--text3);font-size:12.5px;padding:6px 0">No members added yet.</div>';
+      return;
+    }
+    list.innerHTML=team.map((m,i)=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:var(--bg);border-radius:var(--r-sm);margin-bottom:6px">
+        <div style="width:32px;height:32px;border-radius:50%;background:#dcfce7;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#15803d">${m.name[0].toUpperCase()}</div>
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:13px">${m.name}</div>
+          <div style="font-size:12px;color:var(--text3)">${m.phone}</div>
+        </div>
+        <button onclick="removeTeamMember('${type}',${i})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:18px;padding:0 4px">×</button>
+      </div>`).join('');
+  });
+}
+
+function addTeamMember(type){
+  const nameEl=document.getElementById(type+'-name-input');
+  const phoneEl=document.getElementById(type+'-phone-input');
+  const name=(nameEl?.value||'').trim();
+  const phone=(phoneEl?.value||'').trim();
+  if(!name){toast('Enter a name','err');return;}
+  if(!phone||!/^\d{10}$/.test(phone)){toast('Enter valid 10-digit WhatsApp number','err');return;}
+  if(!cfg[type+'Team'])cfg[type+'Team']=[];
+  if(cfg[type+'Team'].some(m=>m.phone===phone)){toast('This number already exists','err');return;}
+  cfg[type+'Team'].push({name,phone});
+  saveCfg();
+  if(nameEl)nameEl.value='';
+  if(phoneEl)phoneEl.value='';
+  renderTeamLists();
+  toast('✓ '+name+' added to '+(type==='sales'?'Sales':'Service')+' team','ok');
+}
+
+function removeTeamMember(type,idx){
+  if(!cfg[type+'Team'])return;
+  const name=cfg[type+'Team'][idx]?.name||'Member';
+  cfg[type+'Team'].splice(idx,1);
+  saveCfg();
+  renderTeamLists();
+  toast(name+' removed','ok');
+}
+
+// ── SEND MEETING DETAILS TO SALES TEAM VIA WHATSAPP ──────────
+function openSendMeetingWA(meetId){
+  const m=db.meetings.find(x=>x.id===meetId);
+  if(!m){toast('Meeting not found','err');return;}
+  const salesTeam=cfg.salesTeam||[];
+  if(!salesTeam.length){
+    toast('No sales team added. Go to Settings → WhatsApp Teams','err');
+    setTimeout(()=>navigateTo('settings'),1500);
+    return;
+  }
+  const lead=db.leads.find(l=>l.id===m.leadId);
+  const msg=`📅 *MEETING DETAILS*
+
+👤 *Lead:* ${m.leadName}
+🏢 *Company:* ${lead?.company||'—'}
+📞 *Phone:* ${lead?.phone||'—'}
+📅 *Date:* ${fd(m.date)}
+⏰ *Time:* ${m.time||'TBD'}
+📍 *Location:* ${m.location||'TBD'}
+🎯 *Mode:* ${m.mode||'—'}
+📝 *Notes:* ${m.notes||'No notes'}
+
+_Fixed by: ${m.agentName}_
+_Sent via DoveCRM_`;
+
+  showTeamPicker('sales', msg, '📅 Send Meeting Details');
+}
+
+// ── SEND SERVICE CALL DETAILS TO SERVICE TEAM ────────────────
+function openSendServiceWA(callId){
+  const c=db.calls.find(x=>x.id===callId);
+  if(!c){toast('Call not found','err');return;}
+  const serviceTeam=cfg.serviceTeam||[];
+  if(!serviceTeam.length){
+    toast('No service team added. Go to Settings → WhatsApp Teams','err');
+    setTimeout(()=>navigateTo('settings'),1500);
+    return;
+  }
+  const lead=db.leads.find(l=>l.id===c.leadId);
+  const msg=`🔧 *SERVICE CALL DETAILS*
+
+👤 *Customer:* ${c.leadName}
+🏢 *Company:* ${lead?.company||'—'}
+📞 *Phone:* ${lead?.phone||'—'}
+📋 *Issue / Notes:* ${c.notes||'—'}
+📅 *Logged:* ${fdt(c.datetime)}
+🎯 *Outcome:* ${c.outcome}
+
+_Logged by: ${c.agentName}_
+_Sent via DoveCRM_`;
+
+  showTeamPicker('service', msg, '🔧 Send Service Details');
+}
+
+// ── TEAM PICKER MODAL ─────────────────────────────────────────
+function showTeamPicker(type, msg, title){
+  const team=cfg[type+'Team']||[];
+  const old=document.getElementById('team-picker-modal');
+  if(old)old.remove();
+  const modal=document.createElement('div');
+  modal.id='team-picker-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9100;display:flex;align-items:center;justify-content:center';
+  modal.innerHTML=`
+    <div style="background:var(--surface);border-radius:var(--r-lg);width:420px;max-width:95vw;max-height:85vh;overflow-y:auto;box-shadow:var(--shadow-md)">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+        <div style="font-weight:700;font-size:15px">${title}</div>
+        <button onclick="document.getElementById('team-picker-modal').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3);line-height:1">×</button>
+      </div>
+      <div style="padding:14px 20px">
+        <div style="font-size:12.5px;color:var(--text2);margin-bottom:12px">Select who to send to:</div>
+        ${team.map(m=>`
+          <a href="https://wa.me/91${(m.phone||'').replace(/\D/g,'')}?text=${encodeURIComponent(msg)}"
+            target="_blank"
+            onclick="setTimeout(()=>document.getElementById('team-picker-modal')?.remove(),300)"
+            style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg);border-radius:var(--r);margin-bottom:8px;text-decoration:none;border:1px solid var(--border);transition:all .15s"
+            onmouseover="this.style.borderColor='#25d366';this.style.background='#f0fdf4'"
+            onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--bg)'">
+            <div style="width:40px;height:40px;border-radius:50%;background:#dcfce7;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:#15803d;flex-shrink:0">${m.name[0].toUpperCase()}</div>
+            <div style="flex:1">
+              <div style="font-weight:600;font-size:13px;color:var(--text)">${m.name}</div>
+              <div style="font-size:12px;color:var(--text3)">${m.phone}</div>
+            </div>
+            <div style="font-size:12px;font-weight:700;color:#15803d;white-space:nowrap">Send via WA →</div>
+          </a>`).join('')}
+        <div style="margin-top:10px;padding:10px;background:var(--bg);border-radius:var(--r-sm);font-size:11.5px;color:var(--text3);line-height:1.6">
+          💡 Message is pre-filled with all details. Just tap Send in WhatsApp.
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
+}
 
 // ── WHATSAPP MESSAGE TEMPLATES ────────────────────────────────
 const WA_TEMPLATES = [
@@ -3510,7 +3713,7 @@ rLeads = function(list) {
           </div>
           <div class="ql-field">
             <span class="ql-label">Outcome *</span>
-            <select class="ql-select ql-outcome" style="width:150px">
+            <select class="ql-select ql-outcome" style="width:150px" onchange="updateFuLabel(this.closest('.ql-panel'),this.value)">
               <option value="">Select…</option>
               <option>Interested</option><option>Meeting Fixed</option><option>Callback</option>
               <option>Not Answered</option><option>Not Interested</option><option>Follow-up</option>
@@ -3525,7 +3728,7 @@ rLeads = function(list) {
             <input class="ql-input ql-dur" type="number" min="1" placeholder="0" style="width:72px">
           </div>
           <div class="ql-field">
-            <span class="ql-label">Follow-up Date</span>
+            <span class="ql-label ql-fu-label">Next Call Date</span>
             <input class="ql-input ql-fu" type="date" style="width:140px">
           </div>
         </div>
