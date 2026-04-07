@@ -554,6 +554,15 @@ tr:hover td{background:#faf9f5;}
         <input type="date" class="fi" id="fd" style="width:155px" onchange="rCalls()">
         <button class="btn btn-sm" onclick="document.getElementById('fa').value='';document.getElementById('fo').value='';document.getElementById('fct').value='';document.getElementById('fd').value='';rCalls()">Clear</button>
       </div>
+      <!-- Bulk Assign Bar -->
+      <div id="bulk-assign-bar" style="display:none;background:var(--accent-bg);border:1px solid var(--accent);border-radius:var(--r);padding:10px 16px;margin-bottom:10px;display:none;align-items:center;gap:12px">
+        <span id="bulk-count" style="font-weight:700;font-size:13px;color:var(--accent)">0 leads selected</span>
+        <select class="fi" id="bulk-assign-agent" style="width:180px">
+          <option value="">Assign to Telecaller…</option>
+        </select>
+        <button class="btn btn-sm btn-p" onclick="doBulkAssign()">✓ Assign Selected</button>
+        <button class="btn btn-sm" onclick="clearBulkSelection()">✕ Clear</button>
+      </div>
       <div class="card"><div class="table-wrap"><table><thead><tr>
         <th>Lead / Contact</th><th>Telecaller</th><th>Date & Time</th><th>Call Type</th><th>Outcome</th>
         <th>Duration</th><th>Meeting?</th><th>Follow-up</th><th>Notes</th><th></th>
@@ -598,6 +607,7 @@ tr:hover td{background:#faf9f5;}
         <button class="btn btn-sm" onclick="clearLeadFilters()">Clear</button>
       </div>
       <div class="card"><div class="table-wrap"><table><thead><tr>
+        <th style="width:32px"><input type="checkbox" id="select-all-leads" onchange="toggleAllLeads(this.checked)" title="Select all"></th>
         <th>Name / Tags</th><th>Phone</th><th>Priority</th><th>Status</th>
         <th>Assigned To</th><th>Source</th><th>Attempts</th><th>Last Called</th><th>Quick Log</th><th></th>
       </tr></thead><tbody id="ltb"></tbody></table></div></div>
@@ -1081,7 +1091,7 @@ function navigateTo(v,el){
 
   if(v==='calls')rCalls();
   if(v==='meetings')rMeet();
-  if(v==='leads')rLeads(db.leads);
+  if(v==='leads'){rLeads(db.leads);clearBulkSelection();}
   if(v==='reports')rRep();
   if(v==='users')rUsers();
   if(v==='settings')rSettings();
@@ -1576,7 +1586,7 @@ function rLeads(list){
   if(q)d=d.filter(l=>(l.name+l.company+l.phone+l.email+(l.source||'')).toLowerCase().includes(q));
   d=[...d].sort((a,b)=>{const p={'Hot':0,'Warm':1,'Cold':2};return(p[a.priority]??3)-(p[b.priority]??3);});
   const tb=document.getElementById('ltb');
-  if(!d.length){tb.innerHTML='<tr><td colspan="11"><div class="empty"><p>No leads found.</p></div></td></tr>';return;}
+  if(!d.length){tb.innerHTML='<tr><td colspan="12"><div class="empty"><p>No leads found.</p></div></td></tr>';return;}
   tb.innerHTML=d.map(l=>{
     const a=an(l.assignedTo);
     const warnAttempts=l.attempts>=4?`<span style="color:var(--red);font-weight:700" title="May be unreachable">⚠️ ${l.attempts}</span>`:`<span style="font-family:'JetBrains Mono',monospace">${l.attempts||0}</span>`;
@@ -1621,9 +1631,15 @@ function rLeads(list){
           <button class="btn btn-sm" onclick="quickLogCall(${l.id})">Cancel</button>
         </div>
       </div>`:''
-    return`<tr>
+    // Stale lead detection - not called in 3+ days
+    const today3=new Date().toISOString().split('T')[0];
+    const daysSinceCall=l.lastCalled?Math.floor((new Date(today3)-new Date(l.lastCalled))/(1000*60*60*24)):999;
+    const isStale=daysSinceCall>=3&&l.status!=='Closed'&&l.status!=='Not Interested'&&l.status!=='Meeting Done'&&l.status!=='Meeting Fixed';
+    const staleBadge=isStale?`<span style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:4px;font-size:10px;font-weight:700;padding:1px 5px;margin-left:4px" title="Not called in ${daysSinceCall===999?'never':daysSinceCall+' days'}">🥶 ${daysSinceCall===999?'Never called':daysSinceCall+'d stale'}</span>`:'';
+    return`<tr style="${isStale?'background:rgba(220,38,38,.03)':''}">
+      <td style="width:32px;text-align:center"><input type="checkbox" class="lead-cb" value="${l.id}" onchange="updateBulkBar()"></td>
       <td><div class="nc">${avCell(l.name)}<div>
-        <div style="font-weight:600">${l.name}</div>
+        <div style="font-weight:600">${l.name}${staleBadge}</div>
         <div style="font-size:11.5px;color:var(--text3)">${l.company||''}</div>
       </div></div></td>
       <td style="color:var(--text2)">${l.company||'—'}</td>
@@ -1641,12 +1657,13 @@ function rLeads(list){
         ${canLogCall?`<button class="btn btn-sm btn-p" style="padding:3px 9px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Quick Log</button>`:'<span style="color:var(--text3);font-size:12px">—</span>'}
       </td>
       <td style="white-space:nowrap">
-        <button class="ab" onclick="openHistory(${l.id})" title="View History & Notes">📋</button>
+        <button class="ab" onclick="copyLeadDetails(${l.id})" title="Copy lead details">📋</button>
+        <button class="ab" onclick="openHistory(${l.id})" title="View History & Notes">🕐</button>
         <button class="ab" onclick="oeL(${l.id})">✏️</button>
         ${isAdmin()?`<button class="ab d" onclick="dL(${l.id})">🗑</button>`:''}
       </td>
     </tr>
-    ${qlHtml?`<tr><td colspan="11" style="padding:0 14px 6px;background:var(--accent-bg)">${qlHtml}</td></tr>`:''}`;
+    ${qlHtml?`<tr><td colspan="12" style="padding:0 14px 6px;background:var(--accent-bg)">${qlHtml}</td></tr>`:''}`;
   }).join('');
 }
 function clearLeadFilters(){['lf-status','lf-prio','lf-agent','lf-source'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});rLeads(db.leads);}
@@ -2533,6 +2550,162 @@ function dlXL(type){
 }
 function hs(q){if(cv==='calls')rCalls();if(cv==='meetings')rMeet();if(cv==='leads')rLeads(db.leads);}
 
+// ── FEATURE 1: STALE LEAD ALERT ──────────────────────────────
+// Already handled inline in rLeads - see staleBadge variable
+
+// ── FEATURE 2: COPY LEAD DETAILS ─────────────────────────────
+function copyLeadDetails(leadId){
+  const l=db.leads.find(x=>x.id===leadId);
+  if(!l){toast('Lead not found','err');return;}
+  const text=[
+    `Name: ${l.name}`,
+    l.company?`Company: ${l.company}`:'',
+    l.phone?`Phone: ${l.phone}`:'',
+    l.email?`Email: ${l.email}`:'',
+    l.status?`Status: ${l.status}`:'',
+    l.source?`Source: ${l.source}`:'',
+  ].filter(Boolean).join('\n');
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(text).then(()=>toast('✓ Lead details copied!','ok')).catch(()=>fallbackCopy(text));
+  } else { fallbackCopy(text); }
+}
+function fallbackCopy(text){
+  const ta=document.createElement('textarea');
+  ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
+  document.body.appendChild(ta);ta.select();
+  try{document.execCommand('copy');toast('✓ Copied!','ok');}
+  catch{toast('Copy failed — select manually','err');}
+  document.body.removeChild(ta);
+}
+
+// ── FEATURE 3: BULK LEAD ASSIGNMENT ──────────────────────────
+function toggleAllLeads(checked){
+  document.querySelectorAll('.lead-cb').forEach(cb=>cb.checked=checked);
+  updateBulkBar();
+}
+function updateBulkBar(){
+  const selected=document.querySelectorAll('.lead-cb:checked');
+  const bar=document.getElementById('bulk-assign-bar');
+  const countEl=document.getElementById('bulk-count');
+  if(!bar)return;
+  if(selected.length>0){
+    bar.style.display='flex';
+    countEl.textContent=selected.length+' lead'+(selected.length>1?'s':'')+' selected';
+    // Populate telecaller dropdown
+    const sel=document.getElementById('bulk-assign-agent');
+    if(sel&&sel.options.length<=1){
+      tcOnly().forEach(a=>{
+        const opt=document.createElement('option');
+        opt.value=a.id;opt.textContent=a.name;
+        sel.appendChild(opt);
+      });
+    }
+  } else {
+    bar.style.display='none';
+    const saCb=document.getElementById('select-all-leads');
+    if(saCb)saCb.checked=false;
+  }
+}
+function doBulkAssign(){
+  const selected=[...document.querySelectorAll('.lead-cb:checked')].map(cb=>parseInt(cb.value));
+  const agentId=parseInt(document.getElementById('bulk-assign-agent')?.value);
+  if(!selected.length){toast('No leads selected','err');return;}
+  if(!agentId){toast('Select a telecaller to assign to','err');return;}
+  const agent=db.agents.find(a=>a.id===agentId);
+  selected.forEach(lid=>{
+    const lead=db.leads.find(l=>l.id===lid);
+    if(lead){lead.assignedTo=agentId;lead.updatedAt=Date.now();}
+  });
+  saveDB();syncNow();
+  clearBulkSelection();
+  rLeads(db.leads);
+  toast(`✓ ${selected.length} leads assigned to ${agent?.name||'telecaller'}!`,'ok');
+}
+function clearBulkSelection(){
+  document.querySelectorAll('.lead-cb').forEach(cb=>cb.checked=false);
+  const saCb=document.getElementById('select-all-leads');
+  if(saCb)saCb.checked=false;
+  const bar=document.getElementById('bulk-assign-bar');
+  if(bar)bar.style.display='none';
+  // Reset dropdown
+  const sel=document.getElementById('bulk-assign-agent');
+  if(sel){sel.innerHTML='<option value="">Assign to Telecaller…</option>';}
+}
+
+// ── FEATURE 4: MORNING BRIEFING ──────────────────────────────
+function showMorningBriefing(){
+  if(!currentUser)return;
+  const today=new Date().toISOString().split('T')[0];
+  const sessionKey='dovecrm_briefing_'+today+'_'+currentUser.id;
+  if(sessionStorage.getItem(sessionKey))return; // show once per day
+  sessionStorage.setItem(sessionKey,'1');
+
+  const hour=new Date().getHours();
+  const greetIcon=hour<12?'🌅':hour<17?'☀️':'🌙';
+
+  if(currentUser.role==='telecaller'){
+    const uid=currentUser.id;
+    const myCalls=db.calls.filter(c=>c.agentId===uid&&c.datetime.startsWith(today));
+    const tgt=currentUser.dailyTarget||60;
+    const closedSt=new Set(['Closed','Not Interested']);
+    const overdueFollowups=db.calls.filter(c=>{
+      if(c.agentId!==uid||!c.followupDate||c.followupDate>today)return false;
+      const lead=db.leads.find(l=>l.id===c.leadId);
+      return !lead||!closedSt.has(lead.status);
+    });
+    const uniqOverdue=new Map();
+    overdueFollowups.forEach(c=>{if(!uniqOverdue.has(c.leadId))uniqOverdue.set(c.leadId,c);});
+    const todayMeets=db.meetings.filter(m=>m.agentId===uid&&m.date===today&&m.status==='Scheduled');
+
+    const items=[
+      myCalls.length>0?`📞 ${myCalls.length} calls done today`:`📞 0/${tgt} calls done — let's go!`,
+      uniqOverdue.size>0?`⚠️ ${uniqOverdue.size} overdue follow-up${uniqOverdue.size>1?'s':''}!`:'✅ No overdue follow-ups',
+      todayMeets.length>0?`📅 ${todayMeets.length} meeting${todayMeets.length>1?'s':''} today`:'📅 No meetings today',
+    ];
+
+    showBriefingModal(greetIcon+' '+(hour<12?'Good Morning':hour<17?'Good Afternoon':'Good Evening')+', '+currentUser.name.split(' ')[0]+'!', items);
+
+  } else if(currentUser.role==='manager'){
+    const myTCIds=tcOnly().map(a=>a.id);
+    const todayCalls=db.calls.filter(c=>myTCIds.includes(c.agentId)&&c.datetime.startsWith(today));
+    const todayMeets=db.meetings.filter(m=>myTCIds.includes(m.agentId)&&m.date===today&&m.status==='Scheduled');
+    const staleLeads=db.leads.filter(l=>{
+      if(!myTCIds.includes(l.assignedTo)||l.status==='Closed'||l.status==='Not Interested')return false;
+      const days=l.lastCalled?Math.floor((new Date(today)-new Date(l.lastCalled))/(1000*60*60*24)):999;
+      return days>=3;
+    });
+
+    const items=[
+      `📞 ${todayCalls.length} calls by your team today`,
+      `📅 ${todayMeets.length} meeting${todayMeets.length!==1?'s':''} today`,
+      staleLeads.length>0?`🥶 ${staleLeads.length} stale lead${staleLeads.length>1?'s':''} need attention!`:'✅ No stale leads',
+    ];
+
+    showBriefingModal(greetIcon+' '+(hour<12?'Good Morning':hour<17?'Good Afternoon':'Good Evening')+', '+currentUser.name.split(' ')[0]+'!', items);
+  }
+}
+
+function showBriefingModal(title, items){
+  const old=document.getElementById('briefing-modal');
+  if(old)old.remove();
+  const modal=document.createElement('div');
+  modal.id='briefing-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9200;display:flex;align-items:center;justify-content:center';
+  modal.innerHTML=`
+    <div style="background:var(--surface);border-radius:var(--r-lg);width:380px;max-width:95vw;box-shadow:var(--shadow-md);overflow:hidden">
+      <div style="background:linear-gradient(135deg,#1e1b4b,#1e3a5f);padding:20px 24px;color:#fff">
+        <div style="font-size:18px;font-weight:700;margin-bottom:2px">${title}</div>
+        <div style="font-size:12px;opacity:.6">Here's your briefing for today</div>
+      </div>
+      <div style="padding:18px 24px">
+        ${items.map(item=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13.5px">${item}</div>`).join('')}
+        <button onclick="document.getElementById('briefing-modal').remove()" class="btn btn-p" style="width:100%;margin-top:16px">Let's Go! 🚀</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
+}
+
 
 // ── SALES & SERVICE TEAM MANAGEMENT ──────────────────────────
 function renderTeamLists(){
@@ -3374,18 +3547,38 @@ function viewOverdueNow(){
 
   if(currentUser.role==='telecaller'){
     if(cv==='my-dashboard'){
-      // Already on My Dashboard — just scroll to follow-up queue directly
+      // Already on My Dashboard — scroll to follow-up queue
       scrollToFollowUp();
     } else {
-      // Navigate first then scroll
       navigateTo('my-dashboard',document.getElementById('nav-my-dashboard'));
       setTimeout(scrollToFollowUp, 500);
     }
   } else {
-    // Manager — go to dashboard
-    if(cv!=='dashboard'){
-      navigateTo('dashboard',document.getElementById('nav-dashboard'));
-    }
+    // Manager/SA — go to Leads page filtered to show overdue follow-up leads
+    navigateTo('leads',document.getElementById('nav-leads'));
+    setTimeout(()=>{
+      // Filter leads to show only those with overdue follow-ups
+      const today=new Date().toISOString().split('T')[0];
+      const overdueLids=new Set(db.calls
+        .filter(c=>c.followupDate&&c.followupDate<today)
+        .map(c=>c.leadId));
+      // Highlight stale leads by scrolling to first one
+      const rows=document.querySelectorAll('#ltb tr');
+      let found=false;
+      rows.forEach(row=>{
+        if(!found&&row.querySelector('.lead-cb')){
+          const lid=parseInt(row.querySelector('.lead-cb')?.value);
+          if(overdueLids.has(lid)){
+            row.scrollIntoView({behavior:'smooth',block:'center'});
+            row.style.transition='background .3s';
+            row.style.background='rgba(220,38,38,.08)';
+            setTimeout(()=>row.style.background='',2500);
+            found=true;
+          }
+        }
+      });
+      toast('Showing leads with overdue follow-ups','ok');
+    },500);
   }
 }
 function checkOverdueFollowups(){
@@ -3786,6 +3979,7 @@ startApp = function() {
   renderReminders();
   requestNotifPermission();
   autoCreateFollowupReminders();
+  setTimeout(showMorningBriefing, 2500); // show after data loads
   // Show overdue alert after short delay so dashboard loads first
   if(currentUser.role==='telecaller'||currentUser.role==='manager'){
     setTimeout(()=>{
