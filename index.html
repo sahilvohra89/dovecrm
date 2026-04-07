@@ -840,6 +840,8 @@ function loadDB(){
     if(!d.leads)d.leads=[];
     if(!d.meetings)d.meetings=[];
     if(!d.deletedIds)d.deletedIds=[];
+    if(!d.salesTeam)d.salesTeam=[];
+    if(!d.serviceTeam)d.serviceTeam=[];
     // Normalize managerId to integer
     if(d.agents)d.agents.forEach(a=>{if(a.managerId!==null&&a.managerId!==undefined)a.managerId=parseInt(a.managerId)||null;});
     return d;
@@ -854,10 +856,9 @@ function loadCfg(){
     if(!d.gsSheet)d.gsSheet='DoveCRM';
     if(!d.targets)d.targets={};
     if(!d.lastSync)d.lastSync=null;
-    if(!d.salesTeam)d.salesTeam=[]; // [{name,phone}]
-    if(!d.serviceTeam)d.serviceTeam=[]; // [{name,phone}]
+    // salesTeam/serviceTeam moved to db for cross-device sync
     return d;
-  }catch{return{gsUrl:'',gsSheet:'DoveCRM',targets:{},lastSync:null,salesTeam:[],serviceTeam:[]};}}
+  }catch{return{gsUrl:'',gsSheet:'DoveCRM',targets:{},lastSync:null};}}
 function saveCfg(){localStorage.setItem(CFG_KEY,JSON.stringify(cfg));}
 
 function seed(){
@@ -871,6 +872,8 @@ function seed(){
     calls:[],
     meetings:[],
     deletedIds:[],
+    salesTeam:[],
+    serviceTeam:[],
     nA:2,nL:1,nC:1,nM:1,
   };
 }
@@ -1547,7 +1550,7 @@ function rMeet(){
     <td style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px">${m.dealValue?'₹'+Number(m.dealValue).toLocaleString('en-IN'):'—'}</td>
     <td style="font-size:12px;color:var(--text2)">${m.followupDate?fd(m.followupDate):'—'}</td>
     <td style="white-space:nowrap">
-      ${(cfg.salesTeam&&cfg.salesTeam.length>0)||(isAdmin()&&true)?`<button class="ab" onclick="openSendMeetingWA(${m.id})" title="Send to Sales Team" style="background:#dcfce7;color:#15803d">📲</button>`:''} 
+      ${(db.salesTeam&&db.salesTeam.length>0)||(isAdmin()&&true)?`<button class="ab" onclick="openSendMeetingWA(${m.id})" title="Send to Sales Team" style="background:#dcfce7;color:#15803d">📲</button>`:''} 
       <button class="ab" onclick="oeM(${m.id})">✏️</button>
       ${isAdmin()?`<button class="ab d" onclick="dM(${m.id})">🗑</button>`:''} 
     </td>
@@ -1874,7 +1877,7 @@ function rRep(){
 function rSettings(){
   // Show WhatsApp teams box for SA and Manager
   const teamsBox=document.getElementById('wa-teams-box');
-  if(teamsBox)teamsBox.style.display=(currentUser.role==='superadmin'||currentUser.role==='manager')?'block':'none';
+  if(teamsBox)teamsBox.style.display=currentUser.role==='superadmin'?'block':'none';
   renderTeamLists();
   const el=document.getElementById('gs-url');if(el)el.value=cfg.gsUrl||'';
   const el2=document.getElementById('gs-sheet');if(el2)el2.value=cfg.gsSheet||'DoveCRM';
@@ -2562,8 +2565,8 @@ function addTeamMember(type){
   if(!phone||!/^\d{10}$/.test(phone)){toast('Enter valid 10-digit WhatsApp number','err');return;}
   if(!cfg[type+'Team'])cfg[type+'Team']=[];
   if(cfg[type+'Team'].some(m=>m.phone===phone)){toast('This number already exists','err');return;}
-  cfg[type+'Team'].push({name,phone});
-  saveCfg();
+  db[type+'Team'].push({name,phone});
+  saveDB();syncNow();
   if(nameEl)nameEl.value='';
   if(phoneEl)phoneEl.value='';
   renderTeamLists();
@@ -2573,8 +2576,8 @@ function addTeamMember(type){
 function removeTeamMember(type,idx){
   if(!cfg[type+'Team'])return;
   const name=cfg[type+'Team'][idx]?.name||'Member';
-  cfg[type+'Team'].splice(idx,1);
-  saveCfg();
+  db[type+'Team'].splice(idx,1);
+  saveDB();syncNow();
   renderTeamLists();
   toast(name+' removed','ok');
 }
@@ -2583,7 +2586,7 @@ function removeTeamMember(type,idx){
 function openSendMeetingWA(meetId){
   const m=db.meetings.find(x=>x.id===meetId);
   if(!m){toast('Meeting not found','err');return;}
-  const salesTeam=cfg.salesTeam||[];
+  const salesTeam=db.salesTeam||[];
   if(!salesTeam.length){
     toast('No sales team added. Go to Settings → WhatsApp Teams','err');
     setTimeout(()=>navigateTo('settings'),1500);
@@ -2611,7 +2614,7 @@ _Sent via DoveCRM_`;
 function openSendServiceWA(callId){
   const c=db.calls.find(x=>x.id===callId);
   if(!c){toast('Call not found','err');return;}
-  const serviceTeam=cfg.serviceTeam||[];
+  const serviceTeam=db.serviceTeam||[];
   if(!serviceTeam.length){
     toast('No service team added. Go to Settings → WhatsApp Teams','err');
     setTimeout(()=>navigateTo('settings'),1500);
@@ -2978,6 +2981,8 @@ function mergeDB(local,remote){
     leads:mergeArr(local.leads,remote.leads||[],'leads'),
     meetings:mergeArr(local.meetings,remote.meetings||[],'meetings'),
     agents:mergeArr(local.agents,remote.agents||[],'agents').map(normalizeAgent),
+    salesTeam:remote.salesTeam||local.salesTeam||[],
+    serviceTeam:remote.serviceTeam||local.serviceTeam||[],
     deletedIds:dedupDel,
     nA:Math.max(local.nA||0,remote.nA||0),
     nL:Math.max(local.nL||0,remote.nL||0),
