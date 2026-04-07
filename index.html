@@ -610,8 +610,8 @@ tr:hover td{background:#faf9f5;}
       </div>
       <div class="card"><div class="table-wrap"><table><thead><tr>
         <th style="width:32px"><input type="checkbox" id="select-all-leads" onchange="toggleAllLeads(this.checked)" title="Select all"></th>
-        <th>Name / Tags</th><th>Phone</th><th>Priority</th><th>Status</th>
-        <th>Assigned To</th><th>Source</th><th>Attempts</th><th>Last Called</th><th>Quick Log</th><th></th>
+        <th>Name</th><th>Phone</th><th>Priority</th><th>Status</th>
+        <th>Assigned To</th><th>Source</th><th>Calls</th><th>Last Called</th><th>Action</th>
       </tr></thead><tbody id="ltb"></tbody></table></div></div>
     </div>
 
@@ -1093,7 +1093,16 @@ function navigateTo(v,el){
 
   if(v==='calls')rCalls();
   if(v==='meetings')rMeet();
-  if(v==='leads'){rLeads(db.leads);clearBulkSelection();}
+  if(v==='leads'){
+    rLeads(db.leads);clearBulkSelection();
+    // Hide bulk assign bar and checkboxes for telecallers
+    const bulkBar=document.getElementById('bulk-assign-bar');
+    const selAll=document.getElementById('select-all-leads');
+    if(!isAdmin()){
+      if(bulkBar)bulkBar.style.display='none';
+      if(selAll)selAll.style.display='none';
+    }
+  }
   if(v==='reports')rRep();
   if(v==='users')rUsers();
   if(v==='settings')rSettings();
@@ -1588,7 +1597,7 @@ function rLeads(list){
   if(q)d=d.filter(l=>(l.name+l.company+l.phone+l.email+(l.source||'')).toLowerCase().includes(q));
   d=[...d].sort((a,b)=>{const p={'Hot':0,'Warm':1,'Cold':2};return(p[a.priority]??3)-(p[b.priority]??3);});
   const tb=document.getElementById('ltb');
-  if(!d.length){tb.innerHTML='<tr><td colspan="12"><div class="empty"><p>No leads found.</p></div></td></tr>';return;}
+  if(!d.length){tb.innerHTML='<tr><td colspan="11"><div class="empty"><p>No leads found.</p></div></td></tr>';return;}
   tb.innerHTML=d.map(l=>{
     const a=an(l.assignedTo);
     const warnAttempts=l.attempts>=4?`<span style="color:var(--red);font-weight:700" title="May be unreachable">⚠️ ${l.attempts}</span>`:`<span style="font-family:'JetBrains Mono',monospace">${l.attempts||0}</span>`;
@@ -1644,10 +1653,9 @@ function rLeads(list){
         <div style="font-weight:600">${l.name}${staleBadge}</div>
         <div style="font-size:11.5px;color:var(--text3)">${l.company||''}</div>
       </div></div></td>
-      <td style="color:var(--text2)">${l.company||'—'}</td>
       <td><div style="display:flex;align-items:center;gap:6px">
-        <span style="font-family:'JetBrains Mono',monospace;font-size:12.5px">${l.phone||'—'}</span>
-        ${l.phone?`<button class="wa-btn" onclick="openWATemplates(${l.id})" style="border:none;cursor:pointer;font-size:10.5px;padding:2px 6px">💬 WA</button>`:''}
+        ${l.phone?`<a href="tel:${l.phone}" style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--accent);text-decoration:none">${l.phone}</a>`:'<span style="color:var(--text3)">—</span>'}
+        ${l.phone?`<button class="wa-btn" onclick="openWATemplates(${l.id})" style="border:none;cursor:pointer;font-size:10.5px;padding:2px 6px">💬</button>`:''}
       </div></td>
       <td>${prioBdg(l.priority)}</td>
       <td>${bdg(l.status)}</td>
@@ -1656,16 +1664,15 @@ function rLeads(list){
       <td>${warnAttempts}</td>
       <td style="font-size:12px;color:var(--text2)">${l.lastCalled?fd(l.lastCalled):'—'}</td>
       <td style="white-space:nowrap">
-        ${canLogCall?`<button class="btn btn-sm btn-p" style="padding:3px 9px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Quick Log</button>`:'<span style="color:var(--text3);font-size:12px">—</span>'}
-      </td>
-      <td style="white-space:nowrap">
-        <button class="ab" onclick="copyLeadDetails(${l.id})" title="Copy lead details to clipboard">⎘</button>
-        <button class="ab" onclick="openHistory(${l.id})" title="View call history & notes" style="font-size:13px">📋 History</button>
-        <button class="ab" onclick="oeL(${l.id})">✏️</button>
-        ${isAdmin()?`<button class="ab d" onclick="dL(${l.id})">🗑</button>`:''}
+        ${canLogCall?`<button class="btn btn-sm btn-p" style="padding:3px 9px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Log</button>`:''}
+        <button class="ab" onclick="openHistory(${l.id})" title="Call History & Notes">📋</button>
+        ${l.status!=='Closed'&&l.status!=='Not Interested'?`<button class="ab" onclick="openLeadSalesWA(${l.id})" title="${l.status==='Meeting Done'||l.status==='Meeting Fixed'?'Send meeting details to Sales Team':'Send lead details to Sales Team'}" style="background:#dcfce7;color:#15803d">📲</button>`:''}
+        <button class="ab" onclick="copyLeadDetails(${l.id})" title="Copy details">⎘</button>
+        <button class="ab" onclick="oeL(${l.id})" title="Edit">✏️</button>
+        ${isAdmin()?`<button class="ab d" onclick="dL(${l.id})" title="Delete">🗑</button>`:''}
       </td>
     </tr>
-    ${qlHtml?`<tr><td colspan="12" style="padding:0 14px 6px;background:var(--accent-bg)">${qlHtml}</td></tr>`:''}`;
+    ${qlHtml?`<tr><td colspan="11" style="padding:0 14px 6px;background:var(--accent-bg)">${qlHtml}</td></tr>`:''}`;
   }).join('');
 }
 function clearLeadFilters(){
@@ -2235,6 +2242,11 @@ function saveM(){
     const callType=document.getElementById('fctype')?.value||'Customer Call';
     const data={leadId:li,leadName:lead?lead.name:'—',agentId:ai,agentName:agent?agent.name:'—',datetime:dt,callType,outcome:oc2,duration:parseInt(document.getElementById('fdur').value)||0,meetingFixed:mf,followupDate:document.getElementById('ffu').value,notes:document.getElementById('fn').value.trim()};
     if(eid){
+      // Verify telecaller can only edit their own calls
+      const editingCall=db.calls.find(x=>x.id===eid);
+      if(editingCall&&currentUser.role==='telecaller'&&editingCall.agentId!==currentUser.id){
+        toast('You can only edit your own calls','err');return;
+      }
       // Recalculate meetingFixed based on current outcome when editing
       data.meetingFixed = oc2==='Meeting Fixed'||(document.getElementById('fcmf')?.checked||false);
       Object.assign(db.calls.find(x=>x.id===eid),data);
@@ -2264,7 +2276,13 @@ function saveM(){
     const lead=db.leads.find(x=>x.id===li),agent=db.agents.find(x=>x.id===ai);
     const mStatus=document.getElementById('fmst')?.value||'Scheduled';
     const data={leadId:li,leadName:lead?lead.name:'—',agentId:ai,agentName:agent?agent.name:'—',date:dt,time:document.getElementById('fmt').value||'',mode:document.getElementById('fmm').value||'',location:document.getElementById('fmloc').value.trim(),status:mStatus,meetingOutcome:document.getElementById('fmout').value||'',dealValue:document.getElementById('fmdeal').value||'',followupDate:document.getElementById('fmfollowup').value||'',notes:document.getElementById('fmn').value.trim()};
-    if(eid){Object.assign(db.meetings.find(x=>x.id===eid),data);toast('Meeting updated.','ok');}
+    if(eid){
+      const editingMeet=db.meetings.find(x=>x.id===eid);
+      if(editingMeet&&currentUser.role==='telecaller'&&editingMeet.agentId!==currentUser.id){
+        toast('You can only edit your own meetings','err');return;
+      }
+      Object.assign(db.meetings.find(x=>x.id===eid),data);toast('Meeting updated.','ok');
+    }
     else{db.meetings.push({id:db.nM++,...data});toast('Meeting scheduled!','ok');}
     saveDB();rMeet();ub();
   } else if(t==='leads'){
@@ -2590,9 +2608,12 @@ function hs(q){if(cv==='calls')rCalls();if(cv==='meetings')rMeet();if(cv==='lead
 // ── QUICK LEAD FILTERS ────────────────────────────────────────
 function filterCallbacksToday(){
   const today=new Date().toISOString().split('T')[0];
-  // Find lead IDs with callback due today
+  // For telecaller — only their callbacks; for admin/manager — all in their scope
+  const relevantTCIds=currentUser.role==='telecaller'
+    ?[currentUser.id]
+    :tcOnly().map(a=>a.id).concat([currentUser.id]);
   const callbackLids=new Set(db.calls
-    .filter(c=>c.followupDate===today&&(c.outcome==='Callback'||c.outcome==='Follow-up'||c.outcome==='Interested'))
+    .filter(c=>relevantTCIds.includes(c.agentId)&&c.followupDate===today&&(c.outcome==='Callback'||c.outcome==='Follow-up'||c.outcome==='Interested'))
     .map(c=>c.leadId));
   // Highlight button as active
   document.getElementById('btn-callbacks-today').style.background='#d97706';
@@ -2612,11 +2633,14 @@ function filterNotAnswered(){
   const today=new Date().toISOString().split('T')[0];
   const threeDaysAgo=new Date();threeDaysAgo.setDate(threeDaysAgo.getDate()-3);
   const cutoff=threeDaysAgo.toISOString().split('T')[0];
+  const relevantTCIds2=currentUser.role==='telecaller'
+    ?[currentUser.id]
+    :tcOnly().map(a=>a.id).concat([currentUser.id]);
   // Leads where last call outcome was Not Answered within last 3 days
   const naLids=new Set();
   db.leads.forEach(l=>{
     if(l.status==='Closed'||l.status==='Not Interested')return;
-    const lastCall=db.calls.filter(c=>c.leadId===l.id).sort((a,b)=>b.datetime.localeCompare(a.datetime))[0];
+    const lastCall=db.calls.filter(c=>c.leadId===l.id&&relevantTCIds2.includes(c.agentId)).sort((a,b)=>b.datetime.localeCompare(a.datetime))[0];
     if(lastCall&&lastCall.outcome==='Not Answered'&&lastCall.datetime.split('T')[0]>=cutoff){
       naLids.add(l.id);
     }
@@ -2651,23 +2675,22 @@ function rLeadsFiltered(list){
         <div style="font-size:11.5px;color:var(--text3)">${l.company||''}</div>
       </div></div></td>
       <td><div style="display:flex;align-items:center;gap:6px">
-        <span style="font-family:'JetBrains Mono',monospace;font-size:12.5px">${l.phone||'—'}</span>
-        ${l.phone?`<button class="wa-btn" onclick="openWATemplates(${l.id})" style="border:none;cursor:pointer;font-size:10.5px;padding:2px 6px">💬 WA</button>`:''}
+        ${l.phone?`<a href="tel:${l.phone}" style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--accent);text-decoration:none">${l.phone}</a>`:'<span style="color:var(--text3)">—</span>'}
+        ${l.phone?`<button class="wa-btn" onclick="openWATemplates(${l.id})" style="border:none;cursor:pointer;font-size:10.5px;padding:2px 6px">💬</button>`:''}
       </div></td>
       <td>${prioBdg(l.priority)}</td>
       <td>${bdg(l.status)}</td>
-      <td><div class="nc">${avCell(a)}<span style="font-size:13px">${a}</span></div></td>
       <td>${bdg(l.source||'—','bgr')}</td>
+      <td><div class="nc">${avCell(a)}<span style="font-size:13px">${a}</span></div></td>
       <td>${warnAttempts}</td>
       <td style="font-size:12px;color:var(--text2)">${l.lastCalled?fd(l.lastCalled):'—'}</td>
       <td style="white-space:nowrap">
-        ${canLogCall?`<button class="btn btn-sm btn-p" style="padding:3px 9px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Quick Log</button>`:'<span style="color:var(--text3);font-size:12px">—</span>'}
-      </td>
-      <td style="white-space:nowrap">
-        <button class="ab" onclick="copyLeadDetails(${l.id})" title="Copy">⎘</button>
-        <button class="ab" onclick="openHistory(${l.id})" title="History" style="font-size:13px">📋 History</button>
-        <button class="ab" onclick="oeL(${l.id})">✏️</button>
-        ${isAdmin()?`<button class="ab d" onclick="dL(${l.id})">🗑</button>`:''}
+        ${canLogCall?`<button class="btn btn-sm btn-p" style="padding:3px 9px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Log</button>`:''}
+        <button class="ab" onclick="openHistory(${l.id})" title="Call History & Notes">📋</button>
+        ${(db.salesTeam&&db.salesTeam.length)?`<button class="ab" onclick="openLeadSalesWA(${l.id})" title="Send to Sales Team" style="background:#dcfce7;color:#15803d">📲</button>`:''}
+        <button class="ab" onclick="copyLeadDetails(${l.id})" title="Copy details">⎘</button>
+        <button class="ab" onclick="oeL(${l.id})" title="Edit">✏️</button>
+        ${isAdmin()?`<button class="ab d" onclick="dL(${l.id})" title="Delete">🗑</button>`:''}
       </td>
     </tr>`;
   }).join('');
@@ -2730,6 +2753,7 @@ function updateBulkBar(){
   }
 }
 function doBulkAssign(){
+  if(!isAdmin()){toast('Only managers and admins can assign leads','err');return;}
   const selected=[...document.querySelectorAll('.lead-cb:checked')].map(cb=>parseInt(cb.value));
   const agentId=parseInt(document.getElementById('bulk-assign-agent')?.value);
   if(!selected.length){toast('No leads selected','err');return;}
@@ -2879,6 +2903,55 @@ function removeTeamMember(type,idx){
 }
 
 // ── SEND MEETING DETAILS TO SALES TEAM VIA WHATSAPP ──────────
+function openLeadSalesWA(leadId){
+  const lead=db.leads.find(l=>l.id===leadId);
+  if(!lead){toast('Lead not found','err');return;}
+  const salesTeam=db.salesTeam||[];
+  if(!salesTeam.length){
+    toast('No sales team added. Go to Settings → WhatsApp Teams','err');
+    setTimeout(()=>navigateTo('settings'),1500);
+    return;
+  }
+  const isMeetingFixed=lead.status==='Meeting Done'||lead.status==='Meeting Fixed';
+  // If meeting is fixed, include meeting details
+  const meeting=isMeetingFixed?db.meetings.filter(m=>m.leadId===leadId&&m.status==='Scheduled').sort((a,b)=>b.date.localeCompare(a.date))[0]:null;
+
+  let msg='';
+  if(isMeetingFixed&&meeting){
+    msg=`📅 *MEETING DETAILS*
+
+👤 *Lead:* ${lead.name}
+🏢 *Company:* ${lead.company||'—'}
+📞 *Phone:* ${lead.phone||'—'}
+📅 *Date:* ${fd(meeting.date)}
+⏰ *Time:* ${meeting.time||'TBD'}
+📍 *Location:* ${meeting.location||'TBD'}
+🎯 *Mode:* ${meeting.mode||'—'}
+📝 *Notes:* ${meeting.notes||'—'}
+
+_Fixed by: ${meeting.agentName}_
+_Sent via DoveCRM_`;
+  } else {
+    // No meeting yet — just send lead details
+    const lastCall=db.calls.filter(c=>c.leadId===leadId).sort((a,b)=>b.datetime.localeCompare(a.datetime))[0];
+    msg=`🎯 *LEAD DETAILS*
+
+👤 *Name:* ${lead.name}
+🏢 *Company:* ${lead.company||'—'}
+📞 *Phone:* ${lead.phone||'—'}
+📧 *Email:* ${lead.email||'—'}
+⭐ *Priority:* ${lead.priority||'—'}
+🎯 *Status:* ${lead.status}
+📋 *Source:* ${lead.source||'—'}
+${lastCall?`
+📞 *Last Call:* ${lastCall.outcome} — ${lastCall.notes||'No notes'}`:''}
+
+_Shared by: ${currentUser.name}_
+_Sent via DoveCRM_`;
+  }
+  const title=isMeetingFixed&&meeting?'📅 Send Meeting Details':'🎯 Send Lead Details';
+  showTeamPicker('sales', msg, title);
+}
 function openSendMeetingWA(meetId){
   const m=db.meetings.find(x=>x.id===meetId);
   if(!m){toast('Meeting not found','err');return;}
