@@ -1669,14 +1669,18 @@ function rLeads(list){
       <td>${bdg(l.source||'—','bgr')}</td>
       <td>${warnAttempts}</td>
       <td style="font-size:12px;color:var(--text2)">${l.lastCalled?fd(l.lastCalled):'—'}</td>
-      <td style="white-space:nowrap;position:relative">
-        ${canLogCall&&l.status!=='Not Interested'&&l.status!=='Closed'&&l.status!=='Won'?`<button class="btn btn-sm btn-p" style="padding:3px 9px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Log</button>`:''}
-        ${(l.status==='Not Interested'||l.status==='Closed'||l.status==='Won')?`<button class="btn btn-sm" style="padding:3px 9px;font-size:11px;background:var(--amber-bg);color:var(--amber);border-color:var(--amber-b)" onclick="reactivateLead(${l.id})">🔄</button>`:''}
-        <div class="lead-action-wrap" style="display:inline-block;position:relative">
-          <button class="btn btn-sm" onclick="toggleLeadMenu(event,${l.id})" style="padding:3px 9px;font-size:11px">⋯</button>
-          <div id="lead-menu-${l.id}" class="lead-action-menu" style="display:none;position:absolute;right:0;top:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-md);z-index:100;min-width:180px;padding:4px 0">
+      <td style="white-space:nowrap">
+        ${canLogCall&&l.status!=='Not Interested'&&l.status!=='Closed'&&l.status!=='Won'
+          ?`<button class="btn btn-sm btn-p" style="padding:3px 8px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Log</button>`:''}
+        <div style="display:inline-block;position:relative">
+          <button class="btn btn-sm" onclick="toggleLeadMenu(event,${l.id})" style="padding:3px 8px;font-size:11px">Actions ▾</button>
+          <div id="lead-menu-${l.id}" class="lead-action-menu" style="display:none;position:absolute;right:0;top:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-md);z-index:200;min-width:190px;padding:4px 0">
+            ${(l.status==='Not Interested'||l.status==='Closed'||l.status==='Won')
+              ?`<div onclick="reactivateLead(${l.id});closeLeadMenus()" class="lead-menu-item" style="color:var(--amber)">🔄 Reactivate Lead</div>`
+              :''}
             <div onclick="openHistory(${l.id});closeLeadMenus()" class="lead-menu-item">📋 History & Notes</div>
-            <div onclick="openLeadSalesWA(${l.id});closeLeadMenus()" class="lead-menu-item" style="color:#15803d">📲 Send to Sales Team</div>
+            ${l.status!=='Closed'&&l.status!=='Not Interested'&&l.status!=='Won'
+              ?`<div onclick="openLeadSalesWA(${l.id});closeLeadMenus()" class="lead-menu-item" style="color:#15803d">📲 Send to Sales Team</div>`:''}
             <div onclick="copyLeadDetails(${l.id});closeLeadMenus()" class="lead-menu-item">⎘ Copy Details</div>
             <div onclick="oeL(${l.id});closeLeadMenus()" class="lead-menu-item">✏️ Edit Lead</div>
             ${isAdmin()?`<div onclick="dL(${l.id});closeLeadMenus()" class="lead-menu-item" style="color:var(--red)">🗑 Delete</div>`:''}
@@ -2736,15 +2740,16 @@ function rLeadsFiltered(list){
       <td>${warnAttempts}</td>
       <td style="font-size:12px;color:var(--text2)">${l.lastCalled?fd(l.lastCalled):'—'}</td>
       <td style="white-space:nowrap">
-        ${canLogCall?`<button class="btn btn-sm btn-p" style="padding:3px 9px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Log</button>`:''}
-        <button class="ab" onclick="openHistory(${l.id})" title="Call History & Notes">📋</button>
-        ${canLogCall&&l.status!=='Not Interested'&&l.status!=='Closed'&&l.status!=='Won'?`<button class="btn btn-sm btn-p" style="padding:3px 9px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Log</button>`:''}
-        ${(l.status==='Not Interested'||l.status==='Closed'||l.status==='Won')?`<button class="btn btn-sm" style="padding:3px 9px;font-size:11px;background:var(--amber-bg);color:var(--amber);border-color:var(--amber-b)" onclick="reactivateLead(${l.id})">🔄</button>`:''}
-        <div class="lead-action-wrap" style="display:inline-block;position:relative">
-          <button class="btn btn-sm" onclick="toggleLeadMenu(event,${l.id})" style="padding:3px 9px;font-size:11px">⋯</button>
-          <div id="lead-menu-${l.id}" class="lead-action-menu" style="display:none;position:absolute;right:0;top:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-md);z-index:100;min-width:180px;padding:4px 0">
+        ${canLogCall&&l.status!=='Not Interested'&&l.status!=='Closed'&&l.status!=='Won'
+          ?`<button class="btn btn-sm btn-p" style="padding:3px 8px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Log</button>`:''}
+        <div style="display:inline-block;position:relative">
+          <button class="btn btn-sm" onclick="toggleLeadMenu(event,${l.id})" style="padding:3px 8px;font-size:11px">Actions ▾</button>
+          <div id="lead-menu-${l.id}" class="lead-action-menu" style="display:none;position:absolute;right:0;top:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-md);z-index:200;min-width:190px;padding:4px 0">
+            ${(l.status==='Not Interested'||l.status==='Closed'||l.status==='Won')
+              ?`<div onclick="reactivateLead(${l.id});closeLeadMenus()" class="lead-menu-item" style="color:var(--amber)">🔄 Reactivate Lead</div>`:''}
             <div onclick="openHistory(${l.id});closeLeadMenus()" class="lead-menu-item">📋 History & Notes</div>
-            <div onclick="openLeadSalesWA(${l.id});closeLeadMenus()" class="lead-menu-item" style="color:#15803d">📲 Send to Sales Team</div>
+            ${l.status!=='Closed'&&l.status!=='Not Interested'&&l.status!=='Won'
+              ?`<div onclick="openLeadSalesWA(${l.id});closeLeadMenus()" class="lead-menu-item" style="color:#15803d">📲 Send to Sales Team</div>`:''}
             <div onclick="copyLeadDetails(${l.id});closeLeadMenus()" class="lead-menu-item">⎘ Copy Details</div>
             <div onclick="oeL(${l.id});closeLeadMenus()" class="lead-menu-item">✏️ Edit Lead</div>
             ${isAdmin()?`<div onclick="dL(${l.id});closeLeadMenus()" class="lead-menu-item" style="color:var(--red)">🗑 Delete</div>`:''}
