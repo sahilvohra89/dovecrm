@@ -1694,10 +1694,11 @@ function rLeads(list){
       <td style="font-size:12px;color:var(--text2)">${l.lastCalled?fd(l.lastCalled):'—'}</td>
       <td style="white-space:nowrap">
         ${canLogCall&&l.status!=='Not Interested'&&l.status!=='Closed'&&l.status!=='Won'
-          ?`<button class="btn btn-sm btn-p" style="padding:2px 7px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Log</button>`:
-          (l.status==='Not Interested'||l.status==='Closed'||l.status==='Won')
-          ?`<button class="btn btn-sm" style="padding:2px 7px;font-size:11px;background:var(--amber-bg);color:var(--amber);border-color:var(--amber-b)" onclick="reactivateLead(${l.id})">🔄</button>`:''}
-        <button class="btn btn-sm" style="padding:2px 7px;font-size:11px;letter-spacing:1px" onclick="openLAM(${l.id})">• • •</button>
+          ?`<button class="btn btn-sm btn-p" style="padding:2px 7px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Log</button>`
+          :(l.status==='Not Interested'||l.status==='Closed'||l.status==='Won')
+          ?`<button class="btn btn-sm" style="padding:2px 7px;font-size:11px;background:var(--amber-bg);color:var(--amber);border-color:var(--amber-b)" onclick="openLAM(${l.id})">🔄 More</button>`
+          :''}
+        <button class="btn btn-sm" style="padding:2px 7px;font-size:11px" onclick="openLAM(${l.id})">• • •</button>
       </td>
     </tr>
     ${qlHtml?`<tr><td colspan="10" style="padding:0 14px 6px;background:var(--accent-bg)">${qlHtml}</td></tr>`:''}`;
@@ -2634,6 +2635,10 @@ function dlXL(type){
 function hs(q){if(cv==='calls')rCalls();if(cv==='meetings')rMeet();if(cv==='leads')rLeads(db.leads);}
 
 // ── LEAD ACTION MODAL (⋯ button) ─────────────────────────────
+function leadAction(leadId){
+  // Simple wrapper - just open the LAM modal
+  openLAM(leadId);
+}
 function openLAM(leadId){
   const l=db.leads.find(x=>x.id===leadId);
   if(!l)return;
@@ -2767,11 +2772,7 @@ function rLeadsFiltered(list){
       <td>${warnAttempts}</td>
       <td style="font-size:12px;color:var(--text2)">${l.lastCalled?fd(l.lastCalled):'—'}</td>
       <td style="white-space:nowrap">
-        ${canLogCall&&l.status!=='Not Interested'&&l.status!=='Closed'&&l.status!=='Won'
-          ?`<button class="btn btn-sm btn-p" style="padding:2px 7px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Log</button>`:
-          (l.status==='Not Interested'||l.status==='Closed'||l.status==='Won')
-          ?`<button class="btn btn-sm" style="padding:2px 7px;font-size:11px;background:var(--amber-bg);color:var(--amber);border-color:var(--amber-b)" onclick="reactivateLead(${l.id})">🔄</button>`:''}
-        <button class="btn btn-sm" style="padding:2px 7px;font-size:11px;letter-spacing:1px" onclick="openLAM(${l.id})">• • •</button>
+        <button class="btn btn-sm btn-p" style="padding:2px 7px;font-size:11px" onclick="leadAction(${l.id})">Actions</button>
       </td>
     </tr>`;
   }).join('');
@@ -3094,7 +3095,7 @@ _Sent via DoveCRM_`;
 
 // ── TEAM PICKER MODAL ─────────────────────────────────────────
 function showTeamPicker(type, msg, title){
-  const team=cfg[type+'Team']||[];
+  const team=db[type+'Team']||[];
   const old=document.getElementById('team-picker-modal');
   if(old)old.remove();
   const modal=document.createElement('div');
@@ -4154,101 +4155,6 @@ gF = function(type, d) {
 // Tags are now handled directly inside saveM via getTagsFromModal()
 // No patch needed - _origSaveM patch removed to avoid double-save conflict
 
-// ══════════════════════════════════════════════════════════════
-// FULL LEADS TABLE RE-RENDER WITH TAGS + INLINE QUICK LOG PANEL
-// ══════════════════════════════════════════════════════════════
-rLeads = function(list) {
-  const q = document.getElementById('si')?.value.toLowerCase().trim();
-  const pf = document.getElementById('lf-prio')?.value;
-  const sf = document.getElementById('lf-status')?.value;
-  const af = document.getElementById('lf-agent')?.value;
-  let d = list || db.leads;
-  if (currentUser.role === 'telecaller') d = d.filter(l => l.assignedTo === currentUser.id);
-  else if (currentUser.role === 'manager') { const myTCs = tcOnly().map(a=>a.id); d = d.filter(l => !l.assignedTo || myTCs.includes(l.assignedTo)); }
-  if (pf) d = d.filter(l => l.priority === pf);
-  if (sf) d = d.filter(l => l.status === sf);
-  if (af) d = d.filter(l => l.assignedTo == af);
-  if (q) d = d.filter(l => (l.name+l.company+l.phone+l.email+(l.tags||[]).join(' ')).toLowerCase().includes(q));
-  // Sort: Hot → Warm → Cold
-  d = [...d].sort((a,b)=>{const p={'Hot':0,'Warm':1,'Cold':2};return(p[a.priority]??3)-(p[b.priority]??3);});
-  const tb = document.getElementById('ltb');
-  if (!tb) return;
-  if (!d.length) { tb.innerHTML = '<tr><td colspan="11"><div class="empty"><p>No leads found.</p></div></td></tr>'; return; }
-  const canEdit = isAdmin() || currentUser.role === 'telecaller'; // telecallers only see their assigned leads due to filter above
-  const canLogCall = (l) => (currentUser.role === 'telecaller' && l.assignedTo === currentUser.id) || isAdmin();
-  tb.innerHTML = d.map(l => {
-    const agent = l.assignedTo ? db.agents.find(a => a.id === l.assignedTo) : null;
-    const av2 = agent ? avc2(agent.name) : null;
-    const warnAttempts = l.attempts >= 4
-      ? `<span style="color:var(--red);font-weight:700" title="May be unreachable">⚠️ ${l.attempts}</span>`
-      : `<span style="font-family:'JetBrains Mono',monospace">${l.attempts||0}</span>`;
-    const qlHtml = canLogCall(l) ? `
-      <div class="ql-panel" id="ql-panel-${l.id}">
-        <div style="font-size:11.5px;font-weight:700;color:var(--accent-t);margin-bottom:8px">⚡ Quick Log Call — ${l.name}</div>
-        <div class="ql-row">
-          <div class="ql-field">
-            <span class="ql-label">Call Type</span>
-            <select class="ql-select ql-ctype" style="width:130px" onchange="qlSwitchOutcomes(this)">
-              <option>Customer Call</option><option>Service Call</option><option>Direct Sales Call</option>
-            </select>
-          </div>
-          <div class="ql-field">
-            <span class="ql-label">Outcome *</span>
-            <select class="ql-select ql-outcome" style="width:150px" onchange="updateFuLabel(this.closest('.ql-panel'),this.value)">
-              <option value="">Select…</option>
-              <option>Interested</option><option>Meeting Fixed</option><option>Callback</option>
-              <option>Not Answered</option><option>Not Interested</option><option>Follow-up</option>
-            </select>
-          </div>
-          <div class="ql-field">
-            <span class="ql-label">Date & Time</span>
-            <input class="ql-input ql-dt" type="datetime-local" style="width:170px">
-          </div>
-          <div class="ql-field">
-            <span class="ql-label">Duration (min)</span>
-            <input class="ql-input ql-dur" type="number" min="1" placeholder="0" style="width:72px">
-          </div>
-          <div class="ql-field">
-            <span class="ql-label ql-fu-label">Next Call Date</span>
-            <input class="ql-input ql-fu" type="date" style="width:140px">
-          </div>
-        </div>
-        <div style="margin-top:7px">
-          <span class="ql-label">Notes</span>
-          <textarea class="ql-textarea ql-notes" rows="2" placeholder="Brief call notes…"></textarea>
-        </div>
-        <div class="ql-actions">
-          <button class="btn btn-sm btn-g" onclick="saveQuickLog(${l.id})">✓ Save Log</button>
-          <button class="btn btn-sm" onclick="quickLogCall(${l.id})">Cancel</button>
-        </div>
-      </div>` : '';
-    return `<tr>
-      <td><div class="nc">${avCell(l.name)}<div>
-        <div style="font-weight:600">${l.name}</div>
-        <div style="font-size:12px;color:var(--text3)">${l.company||''}</div>
-        ${renderLeadTags(l.tags)}
-      </div></div></td>
-      <td><div style="display:flex;align-items:center;gap:5px">
-        ${l.phone?`<a href="tel:${l.phone}" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent);text-decoration:none">${l.phone}</a>`:'—'}
-        ${l.phone?`<button class="wa-btn" onclick="openWATemplates(${l.id})" style="border:none;cursor:pointer;font-size:10px;padding:2px 5px">💬 WA</button>`:''}
-      </div></td>
-      <td>${prioBdg(l.priority)}</td>
-      <td>${bdg(l.status)}</td>
-      <td style="font-size:12.5px">${agent?`<div class="nc"><div class="av" style="width:22px;height:22px;font-size:9px;background:${av2.bg};color:${av2.c}">${ini(agent.name)}</div>${agent.name}</div>`:'<span style="color:var(--text3)">Unassigned</span>'}</td>
-      <td style="font-size:12px;color:var(--text2)">${l.source||'—'}</td>
-      <td style="text-align:center">${warnAttempts}</td>
-      <td style="font-size:12px;color:var(--text2)">${l.lastCalled?fd(l.lastCalled):'Never'}</td>
-      <td style="white-space:nowrap">
-        ${canLogCall(l)?`<button class="btn btn-sm btn-p" style="padding:3px 9px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Quick Log</button>`:'<span style="color:var(--text3);font-size:12px">—</span>'}
-      </td>
-      <td style="white-space:nowrap">
-        ${canEdit?`<button class="ab" onclick="oeL(${l.id})" title="Edit">✏️</button>`:''}
-        ${isAdmin()?`<button class="ab d" onclick="dL(${l.id})" title="Delete">🗑</button>`:''}
-      </td>
-    </tr>
-    ${qlHtml?`<tr><td colspan="10" style="padding:0 14px 6px;background:var(--accent-bg)">${qlHtml}</td></tr>`:''}`;
-  }).join('');
-};
 
 // (Profile type config removed — dashboard is now fully adaptive)
 
