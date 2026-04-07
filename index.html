@@ -1588,6 +1588,7 @@ function ums(id,s){const m=db.meetings.find(x=>x.id===id);if(m){m.status=s;saveD
 
 // ── LEADS ─────────────────────────────────────────────────────
 function rLeads(list){
+  const today=new Date().toISOString().split('T')[0];
   const q=document.getElementById('si')?.value.toLowerCase().trim();
   const sf=document.getElementById('lf-status')?.value;
   const pf2=document.getElementById('lf-prio')?.value;
@@ -1649,8 +1650,7 @@ function rLeads(list){
         </div>
       </div>`:''
     // Stale lead detection - not called in 3+ days
-    const today3=new Date().toISOString().split('T')[0];
-    const daysSinceCall=l.lastCalled?Math.floor((new Date(today3)-new Date(l.lastCalled))/(1000*60*60*24)):999;
+    const daysSinceCall=l.lastCalled?Math.floor((new Date(today)-new Date(l.lastCalled))/(1000*60*60*24)):999;
     const isStale=daysSinceCall>=3&&l.status!=='Closed'&&l.status!=='Won'&&l.status!=='Not Interested'&&l.status!=='Meeting Done'&&l.status!=='Meeting Fixed';
     const staleBadge=isStale?`<span style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:4px;font-size:10px;font-weight:700;padding:1px 5px;margin-left:4px" title="Not called in ${daysSinceCall===999?'never':daysSinceCall+' days'}">🥶 ${daysSinceCall===999?'Never called':daysSinceCall+'d stale'}</span>`:'';
     return`<tr style="${isStale?'background:rgba(220,38,38,.03)':''}">
@@ -1674,7 +1674,7 @@ function rLeads(list){
           ?`<button class="btn btn-sm btn-p" style="padding:3px 8px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Log</button>`:''}
         <div style="display:inline-block;position:relative">
           <button class="btn btn-sm" onclick="toggleLeadMenu(event,${l.id})" style="padding:3px 8px;font-size:11px">Actions ▾</button>
-          <div id="lead-menu-${l.id}" class="lead-action-menu" style="display:none;position:absolute;right:0;top:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-md);z-index:200;min-width:190px;padding:4px 0">
+          <div id="lead-menu-${l.id}" class="lead-action-menu" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-md);min-width:190px;padding:4px 0">
             ${(l.status==='Not Interested'||l.status==='Closed'||l.status==='Won')
               ?`<div onclick="reactivateLead(${l.id});closeLeadMenus()" class="lead-menu-item" style="color:var(--amber)">🔄 Reactivate Lead</div>`
               :''}
@@ -1688,7 +1688,7 @@ function rLeads(list){
         </div>
       </td>
     </tr>
-    ${qlHtml?`<tr><td colspan="11" style="padding:0 14px 6px;background:var(--accent-bg)">${qlHtml}</td></tr>`:''}`;
+    ${qlHtml?`<tr><td colspan="10" style="padding:0 14px 6px;background:var(--accent-bg)">${qlHtml}</td></tr>`:''}`;
   }).join('');
 }
 function clearLeadFilters(){
@@ -2626,7 +2626,16 @@ function toggleLeadMenu(e,leadId){
   e.stopPropagation();
   closeLeadMenus();
   const menu=document.getElementById('lead-menu-'+leadId);
-  if(menu)menu.style.display=menu.style.display==='none'?'block':'none';
+  if(!menu)return;
+  // Use fixed positioning to escape overflow:hidden parent
+  const btn=e.currentTarget||e.target;
+  const rect=btn.getBoundingClientRect();
+  menu.style.position='fixed';
+  menu.style.top=(rect.bottom+4)+'px';
+  menu.style.right=(window.innerWidth-rect.right)+'px';
+  menu.style.left='auto';
+  menu.style.display='block';
+  menu.style.zIndex='9999';
 }
 function closeLeadMenus(){
   document.querySelectorAll('.lead-action-menu').forEach(m=>m.style.display='none');
@@ -2713,9 +2722,9 @@ function filterNotAnswered(){
 
 function rLeadsFiltered(list){
   // Show filtered leads without changing dropdowns
+  const today=new Date().toISOString().split('T')[0];
   const tb=document.getElementById('ltb');
   if(!list.length){tb.innerHTML='<tr><td colspan="10"><div class="empty"><p>No leads found.</p></div></td></tr>';return;}
-  const today=new Date().toISOString().split('T')[0];
   tb.innerHTML=list.map(l=>{
     const a=an(l.assignedTo);
     const warnAttempts=l.attempts>=4?`<span style="color:var(--red);font-weight:700">⚠️ ${l.attempts}</span>`:`<span style="font-family:'JetBrains Mono',monospace">${l.attempts||0}</span>`;
@@ -2744,7 +2753,7 @@ function rLeadsFiltered(list){
           ?`<button class="btn btn-sm btn-p" style="padding:3px 8px;font-size:11px" onclick="quickLogCall(${l.id})">⚡ Log</button>`:''}
         <div style="display:inline-block;position:relative">
           <button class="btn btn-sm" onclick="toggleLeadMenu(event,${l.id})" style="padding:3px 8px;font-size:11px">Actions ▾</button>
-          <div id="lead-menu-${l.id}" class="lead-action-menu" style="display:none;position:absolute;right:0;top:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-md);z-index:200;min-width:190px;padding:4px 0">
+          <div id="lead-menu-${l.id}" class="lead-action-menu" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-md);min-width:190px;padding:4px 0">
             ${(l.status==='Not Interested'||l.status==='Closed'||l.status==='Won')
               ?`<div onclick="reactivateLead(${l.id});closeLeadMenus()" class="lead-menu-item" style="color:var(--amber)">🔄 Reactivate Lead</div>`:''}
             <div onclick="openHistory(${l.id});closeLeadMenus()" class="lead-menu-item">📋 History & Notes</div>
@@ -4229,7 +4238,7 @@ rLeads = function(list) {
         ${isAdmin()?`<button class="ab d" onclick="dL(${l.id})" title="Delete">🗑</button>`:''}
       </td>
     </tr>
-    ${qlHtml?`<tr><td colspan="11" style="padding:0 14px 6px;background:var(--accent-bg)">${qlHtml}</td></tr>`:''}`;
+    ${qlHtml?`<tr><td colspan="10" style="padding:0 14px 6px;background:var(--accent-bg)">${qlHtml}</td></tr>`:''}`;
   }).join('');
 };
 
