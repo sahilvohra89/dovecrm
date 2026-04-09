@@ -3482,7 +3482,7 @@ function mergeDB(local,remote){
     nM:Math.max(local.nM||0,remote.nM||0)
   };
 }
-setInterval(()=>{if(currentUser&&cfg.gsUrl)syncNow();},15000); // sync every 15s
+setInterval(()=>{if(currentUser&&cfg.gsUrl)syncNow();},30000); // sync every 30s
 
 // ── GAS CODE ──────────────────────────────────────────────────
 const GAS_CODE=`// DoveCRM — Google Apps Script by Dovetail Solutions
