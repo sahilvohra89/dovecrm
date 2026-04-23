@@ -68,8 +68,12 @@
 [data-theme="dark"] .btn:hover{background:var(--surface3);}
 
 *{box-sizing:border-box;margin:0;padding:0;}
+button{-webkit-appearance:none;appearance:none;background:none;border:none;font-family:inherit;font-size:inherit;cursor:pointer;}
 body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;min-height:100vh;transition:background .2s,color .2s;}
 
+
+/* ── SESSION WARN ── */
+.session-warn{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--amber-bg);border:1px solid var(--amber-b);border-radius:var(--r-sm);padding:10px 18px;display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;color:var(--amber);z-index:9998;box-shadow:0 4px 16px rgba(0,0,0,.15);}
 /* ── LOGIN ── */
 #login-screen{position:fixed;inset:0;background:radial-gradient(ellipse at 20% 50%,rgba(99,102,241,.35) 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,rgba(16,185,129,.25) 0%,transparent 55%),radial-gradient(ellipse at 60% 80%,rgba(139,92,246,.2) 0%,transparent 50%),#0d0c18;display:flex;align-items:center;justify-content:center;z-index:9999;}
 .login-box{background:rgba(255,255,255,.04);backdrop-filter:blur(28px);border:1px solid rgba(255,255,255,.1);border-radius:22px;padding:44px 48px;width:430px;max-width:96vw;box-shadow:0 32px 80px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.08);}
@@ -127,13 +131,13 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
 .dm-toggle:hover{background:var(--bg);}
 
 /* ── BUTTONS ── */
-.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--r-sm);font-size:13px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;cursor:pointer;border:1px solid var(--border2);background:var(--surface);color:var(--text);transition:all .13s;white-space:nowrap;line-height:1;}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--r-sm);font-size:13px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;cursor:pointer;border:1px solid var(--border2) !important;background:var(--surface) !important;color:var(--text);transition:all .13s;white-space:nowrap;line-height:1;box-shadow:0 1px 3px rgba(0,0,0,.08);}
 .btn:hover{background:var(--surface2);}
-.btn-p{background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border-color:#2563eb;box-shadow:0 2px 8px rgba(37,99,235,.3);}
+.btn-p{background:linear-gradient(135deg,#3b82f6,#2563eb) !important;color:#fff !important;border-color:#2563eb !important;box-shadow:0 2px 8px rgba(37,99,235,.3);}
 .btn-p:hover{background:linear-gradient(135deg,#2563eb,#1d4ed8);box-shadow:0 3px 12px rgba(37,99,235,.4);transform:translateY(-1px);}
-.btn-g{background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border-color:#16a34a;box-shadow:0 2px 8px rgba(22,163,74,.25);}
+.btn-g{background:linear-gradient(135deg,#22c55e,#16a34a) !important;color:#fff !important;border-color:#16a34a !important;box-shadow:0 2px 8px rgba(22,163,74,.25);}
 .btn-g:hover{background:linear-gradient(135deg,#16a34a,#15803d);transform:translateY(-1px);}
-.btn-r{background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border-color:#dc2626;box-shadow:0 2px 8px rgba(220,38,38,.25);}
+.btn-r{background:linear-gradient(135deg,#ef4444,#dc2626) !important;color:#fff !important;border-color:#dc2626 !important;box-shadow:0 2px 8px rgba(220,38,38,.25);}
 .btn-r:hover{background:linear-gradient(135deg,#dc2626,#b91c1c);transform:translateY(-1px);}
 .btn-gold{background:linear-gradient(135deg,#f59e0b,#b45309);color:#fff;border-color:#b45309;}
 .btn-sm{padding:5px 10px;font-size:12px;}
@@ -203,7 +207,7 @@ tbody tr:nth-child(even) td{background:rgba(0,0,0,.015);}
 @keyframes modalIn{from{opacity:0;transform:scale(.95) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
 .mh{padding:22px 24px 0;display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;}
 .mh h2{font-size:17px;font-weight:700;}
-.mx{background:none;border:none;cursor:pointer;color:var(--text3);font-size:20px;line-height:1;padding:4px 6px;border-radius:var(--r-sm);transition:all .12s;}
+.mx{background:none !important;border:none !important;cursor:pointer;color:var(--text3);font-size:20px;line-height:1;padding:4px 6px;border-radius:var(--r-sm);transition:all .12s;}
 .mx:hover{background:var(--surface2);color:var(--text);}
 .mb{padding:0 24px 4px;}
 .mf{padding:16px 24px 22px;display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--border);margin-top:6px;}
@@ -1025,8 +1029,8 @@ tbody tr:nth-child(even) td{background:rgba(0,0,0,.015);}
 <!-- SESSION WARNING BANNER -->
 <div class="session-warn" id="session-warn" style="display:none">
   <span>⏱ Session expires in <strong id="session-countdown">5:00</strong></span>
-  <button onclick="extendSession()">Stay Logged In</button>
-  <button onclick="doLogout()" style="background:rgba(220,38,38,.3)">Logout Now</button>
+  <button class="btn btn-p btn-sm" onclick="extendSession()">Stay Logged In</button>
+  <button class="btn btn-r btn-sm" onclick="doLogout()">Logout Now</button>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1301,8 +1305,8 @@ function startApp(){
 function buildNav(role){
   const nav=document.getElementById('sidebar-nav');
   let html='';
-  const isAdmin=(role==='manager'||role==='superadmin');
-  if(isAdmin){
+  const isAdminRole=(role==='manager'||role==='superadmin');
+  if(isAdminRole){
     html+=navSec('Overview');
     html+=navItem('dashboard','Dashboard');
     html+=navSec('Operations');
@@ -1359,10 +1363,10 @@ function navigateTo(v,el){
   document.getElementById('ptitle').textContent=ti[v]||v;
   const sw=document.getElementById('srch'),ab=document.getElementById('addbtn');
   sw.style.display=['calls','leads','meetings'].includes(v)?'':'none';
-  const isAdmin=(currentUser.role==='manager'||currentUser.role==='superadmin');
-  const canAdd=isAdmin||(currentUser.role==='telecaller'&&['calls','meetings','leads'].includes(v));
+  const isAdminNav=(currentUser.role==='manager'||currentUser.role==='superadmin');
+  const canAdd=isAdminNav||(currentUser.role==='telecaller'&&['calls','meetings','leads'].includes(v));
   ab.style.display=(canAdd&&['calls','leads','meetings','users'].includes(v))?'':'none';
-  document.getElementById('expbar').style.display=isAdmin?'flex':'none';
+  document.getElementById('expbar').style.display=isAdminNav?'flex':'none';
   const al={calls:'Log Call',leads:'Add Lead',meetings:'Schedule Meeting',users:'Add User'};
   document.getElementById('addlbl').textContent=al[v]||'Add';
   document.getElementById('si').value='';
